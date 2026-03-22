@@ -121,6 +121,8 @@ var _drag_last_position: Vector2 = Vector2.ZERO
 func _ready() -> void:
 	_random.randomize()
 	ThemeDB.fallback_font = UI_FONT
+	_apply_dynamic_resolution()
+	get_window().size_changed.connect(_on_window_size_changed)
 	_setup_audio()
 	_setup_ai_controls()
 	_apply_ai_profile()
@@ -155,7 +157,28 @@ func _ready() -> void:
 func _notification(what: int) -> void:
 	if what != NOTIFICATION_WM_SIZE_CHANGED or not is_node_ready():
 		return
+	_apply_dynamic_resolution()
 	_set_map_offset(_map_offset)
+
+
+## 按当前窗口实际尺寸设置内容分辨率，避免依赖固定设计分辨率。
+##
+## 调用场景：主场景启动时、窗口尺寸变化时。
+## 主要逻辑：读取当前窗口像素尺寸，若尺寸有效则写入 `content_scale_size`，让逻辑分辨率跟随当前窗口。
+func _apply_dynamic_resolution() -> void:
+	var window: Window = get_window()
+	var target_size: Vector2i = window.size
+	if target_size.x <= 0 or target_size.y <= 0:
+		return
+	window.content_scale_size = target_size
+
+
+## 响应窗口尺寸变化，实时刷新动态分辨率配置。
+##
+## 调用场景：窗口拖拽、移动端旋转、Web 画布尺寸变化时由引擎信号触发。
+## 主要逻辑：把最新窗口尺寸同步到内容分辨率，确保画面持续自适应。
+func _on_window_size_changed() -> void:
+	_apply_dynamic_resolution()
 
 
 ## 推进战局主循环，包括行军、产兵和敌军 AI 下单。

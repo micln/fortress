@@ -6,6 +6,14 @@
 - 主控制脚本：`scripts/presentation/prototype_main_game.gd`
 - 当前生效的是 `prototype_*` 这一套实现，旧的非 `prototype_` 文件不作为当前原型入口
 
+## 窗口与分辨率策略
+
+- 项目不使用固定逻辑分辨率作为运行时前提。
+- `prototype_main_game.gd` 启动时会读取当前窗口尺寸，并写入 `Window.content_scale_size` 作为内容分辨率。
+- 当窗口尺寸变化时（`size_changed` 与 `NOTIFICATION_WM_SIZE_CHANGED`），会再次同步 `content_scale_size`，实现动态分辨率。
+- 项目保持 `canvas_items + expand + fractional` 的拉伸策略，保证不同窗口宽高变化时画面可连续自适应。
+- `Overlay` 与 `OrderDialog` 弹窗使用锚点比例布局和最小尺寸约束，窗口变化时会同步调整位置与大小。
+
 ## Web 导出与发布
 
 - Web 发布使用 `export_presets.cfg` 中的 `Web` preset，导出目标为 `build/web/index.html`。
