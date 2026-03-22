@@ -5,6 +5,7 @@ signal city_pressed(city_id: int)
 
 const CITY_SIZE: Vector2 = Vector2(108.0, 78.0)
 const TOWER_SIZE: Vector2 = Vector2(20.0, 34.0)
+const TAP_MAX_DRAG_DISTANCE: float = 18.0
 const TILE_ROOF_COLOR: Color = Color(0.34, 0.16, 0.12)
 const WALL_LINE_COLOR: Color = Color(1.0, 0.96, 0.86, 0.92)
 const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
@@ -17,6 +18,11 @@ var city_defense: int = 1
 var city_production_rate: float = 1.0
 var soldiers: int = 0
 var is_selected: bool = false
+var _mouse_pressing: bool = false
+var _mouse_press_position: Vector2 = Vector2.ZERO
+var _touch_pressing: bool = false
+var _touch_press_position: Vector2 = Vector2.ZERO
+var _touch_index: int = -1
 
 @onready var collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var name_label: Label = $NameLabel
@@ -41,15 +47,16 @@ func setup(p_city_id: int, p_city_name: String) -> void:
 ##
 ## 调用场景：每次地图重绘、进攻结算后、产兵后。
 ## 主要逻辑：同步内部显示数据，把名称、兵力和属性拆成三层文本展示，
-## 让竖屏小地图上的信息层级更稳定、字体节奏更统一。
-func sync_from_state(city, selected: bool) -> void:
+## 让竖屏小地图上的信息层级更稳定、字体节奏更统一；屏幕位置由主场景统一换算后传入，
+## 避免城市节点自己混用世界坐标与屏幕坐标。
+func sync_from_state(city, selected: bool, screen_position: Vector2) -> void:
 	city_owner = city.owner
 	city_level = city.level
 	city_defense = city.defense
 	city_production_rate = city.production_rate
 	soldiers = city.soldiers
 	is_selected = selected
-	position = city.position
+	position = screen_position
 	name_label.text = city.name
 	soldier_label.text = "%d/%d" % [city.soldiers, city.max_soldiers]
 	attr_label.text = "Lv.%d  防%d  产%.1f" % [city.level, city.defense, city.production_rate]
@@ -146,11 +153,32 @@ func _draw_level_banner(gatehouse_rect: Rect2, banner_color: Color) -> void:
 ## 处理城市节点上的触控和鼠标输入，并向主场景抛出点击事件。
 ##
 ## 调用场景：玩家点击或触摸城市时由 Godot 输入系统回调。
-## 主要逻辑：识别鼠标左键与单点触控按下事件，统一转换为 city_pressed 信号。
+## 主要逻辑：按下时先记录初始位置；抬起时若位移仍在点击阈值内，才视为真正点击，
+## 这样在城市上起手拖拽地图时，不会误触发选城。
 func _input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		_viewport.set_input_as_handled()
-		city_pressed.emit(city_id)
-	elif event is InputEventScreenTouch and event.pressed:
-		_viewport.set_input_as_handled()
-		city_pressed.emit(city_id)
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			_mouse_pressing = true
+			_mouse_press_position = event.position
+			return
+		if not _mouse_pressing:
+			return
+		_mouse_pressing = false
+		if event.position.distance_to(_mouse_press_position) <= TAP_MAX_DRAG_DISTANCE:
+			_viewport.set_input_as_handled()
+			city_pressed.emit(city_id)
+		return
+
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			_touch_pressing = true
+			_touch_press_position = event.position
+			_touch_index = event.index
+			return
+		if not _touch_pressing or event.index != _touch_index:
+			return
+		_touch_pressing = false
+		_touch_index = -1
+		if event.position.distance_to(_touch_press_position) <= TAP_MAX_DRAG_DISTANCE:
+			_viewport.set_input_as_handled()
+			city_pressed.emit(city_id)

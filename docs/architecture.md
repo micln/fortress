@@ -31,15 +31,16 @@
 ### `scripts/presentation/`
 
 - `prototype_main_game.gd`
-  - 主循环、HUD、说明面板、暂停、道路绘制、行军单位、空白取消选城、升级按钮和状态提示
+  - 主循环、HUD、说明面板、暂停、地图拖拽、坐标转换、道路绘制、行军单位、空白取消选城、升级按钮和状态提示
 - `prototype_city_view.gd`
-  - 城市图标绘制、标签布局、点击区域
+  - 城市图标绘制、标签布局、点击区域、点击与拖拽判定分离
 
 ## 依赖方向
 
 - `presentation -> application -> domain`
 - `domain` 不依赖 Godot 场景树
 - `application` 只依赖领域对象，不直接依赖具体场景节点
+- 地图平移边界、世界坐标与屏幕坐标转换只允许留在 `presentation`
 
 ## 当前主场景结构
 

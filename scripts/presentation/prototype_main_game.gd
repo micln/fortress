@@ -6,9 +6,11 @@ const PrototypeBattleServiceRef = preload("res://scripts/application/prototype_b
 const PrototypeEnemyAiServiceRef = preload("res://scripts/application/prototype_enemy_ai_service.gd")
 const PrototypeCityViewRef = preload("res://scripts/presentation/prototype_city_view.gd")
 const UI_FONT: Font = preload("res://assets/fonts/NotoSansSC-Regular.otf")
+const MAP_WORLD_SCALE: Vector2 = Vector2(1.75, 1.6)
 const MARCH_SPEED: float = 180.0
 const UNIT_RADIUS: float = 16.0
 const MARCH_COLLISION_DISTANCE: float = 34.0
+const DRAG_START_DISTANCE: float = 18.0
 const AI_DIFFICULTY_ITEMS: Array = [
 	{"id": PrototypeEnemyAiServiceRef.DIFFICULTY_EASY, "name": "简单"},
 	{"id": PrototypeEnemyAiServiceRef.DIFFICULTY_NORMAL, "name": "普通"},
@@ -55,6 +57,14 @@ var _capture_sfx_stream: AudioStreamWAV
 var _error_sfx_stream: AudioStreamWAV
 var _victory_sfx_stream: AudioStreamWAV
 var _defeat_sfx_stream: AudioStreamWAV
+var _map_world_size: Vector2 = Vector2.ZERO
+var _map_offset: Vector2 = Vector2.ZERO
+var _is_dragging_map: bool = false
+var _drag_candidate_active: bool = false
+var _drag_pointer_kind: String = ""
+var _drag_pointer_index: int = -1
+var _drag_press_position: Vector2 = Vector2.ZERO
+var _drag_last_position: Vector2 = Vector2.ZERO
 
 @onready var cities_root: Node2D = $Cities
 @onready var bgm_player: AudioStreamPlayer = $BgmPlayer
@@ -138,6 +148,16 @@ func _ready() -> void:
 	_show_start_overlay()
 
 
+## 响应视口尺寸变化，重新钳制地图偏移，避免横竖尺寸变动后出现可视区露空。
+##
+## 调用场景：窗口尺寸变化、Web 画布尺寸变化时由引擎回调。
+## 主要逻辑：保持当前地图偏移尽量不变，但会重新限制到新的合法范围内，并刷新战场显示。
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_WM_SIZE_CHANGED or not is_node_ready():
+		return
+	_set_map_offset(_map_offset)
+
+
 ## 推进战局主循环，包括行军、产兵和敌军 AI 下单。
 ##
 ## 调用场景：每帧自动执行。
@@ -181,16 +201,18 @@ func _draw() -> void:
 				continue
 
 			var target = _cities[neighbor_id]
+			var from_position: Vector2 = _get_screen_position(city.position)
+			var target_position: Vector2 = _get_screen_position(target.position)
 			var line_color := Color("48576a")
 			var line_width: float = 6.0
 			if city.city_id == _selected_city_id or target.city_id == _selected_city_id:
 				line_color = Color("f6d365")
 				line_width = 10.0
 
-			draw_line(city.position, target.position, line_color, line_width, true)
+			draw_line(from_position, target_position, line_color, line_width, true)
 
 	for unit in _marching_units:
-		var unit_position: Vector2 = _get_marching_unit_position(unit)
+		var unit_position: Vector2 = _get_screen_position(_get_marching_unit_position(unit))
 		var unit_color: Color = PrototypeCityOwnerRef.get_color(int(unit["owner"]))
 		draw_circle(unit_position, UNIT_RADIUS, unit_color)
 		draw_circle(unit_position, UNIT_RADIUS, Color.WHITE, false, 3.0)
@@ -220,10 +242,16 @@ func _start_new_match() -> void:
 	_marching_units.clear()
 	order_dialog_layer.visible = false
 	_apply_ai_profile()
-	_cities = _map_generator.generate_map(9, _random, _player_count - 1)
+	var viewport_size: Vector2 = get_viewport_rect().size
+	_map_world_size = Vector2(
+		max(viewport_size.x + 320.0, viewport_size.x * MAP_WORLD_SCALE.x),
+		max(viewport_size.y + 480.0, viewport_size.y * MAP_WORLD_SCALE.y)
+	)
+	_cities = _map_generator.generate_map(9, _random, _player_count - 1, _map_world_size)
+	_center_map_offset()
 	_spawn_city_views()
 	status_label.text = "阅读说明后点击“开始游戏”。"
-	hint_label.text = "蓝色是你，其他颜色是电脑势力，灰色是中立城市不产兵。"
+	hint_label.text = "蓝色是你，其他颜色是电脑势力，灰色是中立城市不产兵；地图可拖拽浏览。"
 	_refresh_view()
 
 
@@ -371,7 +399,7 @@ func _refresh_view() -> void:
 	for city in _cities:
 		var city_view = _city_views.get(city.city_id)
 		if city_view != null:
-			city_view.sync_from_state(city, city.city_id == _selected_city_id)
+			city_view.sync_from_state(city, city.city_id == _selected_city_id, _get_screen_position(city.position))
 	var pause_suffix: String = " | 已暂停" if _manual_paused else ""
 	ai_config_label.text = "对局：%d 方 | %s | %s%s" % [_player_count, _get_ai_difficulty_name(_ai_difficulty), _get_ai_style_name(_ai_style), pause_suffix]
 	cancel_selection_button.disabled = _selected_city_id == -1 or _game_over or not _game_started or order_dialog_layer.visible or _manual_paused
@@ -440,7 +468,7 @@ func _refresh_upgrade_buttons() -> void:
 	_apply_upgrade_button_state(upgrade_level_button, city, options[PrototypeBattleServiceRef.UPGRADE_LEVEL], "升级")
 	_apply_upgrade_button_state(upgrade_defense_button, city, options[PrototypeBattleServiceRef.UPGRADE_DEFENSE], "升防")
 	_apply_upgrade_button_state(upgrade_production_button, city, options[PrototypeBattleServiceRef.UPGRADE_PRODUCTION], "升产")
-	_position_floating_upgrade_panel(city.position)
+	_position_floating_upgrade_panel(_get_screen_position(city.position))
 	floating_upgrade_panel.visible = true
 
 
@@ -453,6 +481,10 @@ func _position_floating_upgrade_panel(city_position: Vector2) -> void:
 	if panel_size == Vector2.ZERO:
 		panel_size = Vector2(298.0, 60.0)
 	var viewport_size: Vector2 = get_viewport_rect().size
+	var visible_rect := Rect2(Vector2.ZERO, viewport_size)
+	if not visible_rect.grow(80.0).has_point(city_position):
+		floating_upgrade_panel.visible = false
+		return
 	var desired_position := city_position + Vector2(66.0, -28.0)
 	var clamped_x: float = clamp(desired_position.x, 18.0, viewport_size.x - panel_size.x - 18.0)
 	var clamped_y: float = clamp(desired_position.y, 140.0, viewport_size.y - panel_size.y - 120.0)
@@ -885,6 +917,120 @@ func _get_marching_unit_position(unit: Dictionary) -> Vector2:
 	return source.position.lerp(target.position, float(unit["progress"]))
 
 
+## 把世界坐标转换为当前屏幕坐标。
+##
+## 调用场景：绘制道路与行军、摆放城市节点、定位升级面板时。
+## 主要逻辑：统一叠加当前地图偏移，避免战场元素各自维护一套平移结果。
+func _get_screen_position(world_position: Vector2) -> Vector2:
+	return world_position + _map_offset
+
+
+## 把当前屏幕坐标还原为地图世界坐标。
+##
+## 调用场景：点击命中测试、空白取消判定、拖拽后继续选城时。
+## 主要逻辑：用屏幕点减去地图偏移，确保点击判定永远落在同一套世界坐标系里。
+func _get_world_position(screen_position: Vector2) -> Vector2:
+	return screen_position - _map_offset
+
+
+## 把大地图初始平移到屏幕中央附近，避免开局直接贴在左上角。
+##
+## 调用场景：新开一局生成地图之后。
+## 主要逻辑：按世界尺寸和视口尺寸计算中心偏移，再经过边界钳制得到合法初始位置。
+func _center_map_offset() -> void:
+	var viewport_size: Vector2 = get_viewport_rect().size
+	_map_offset = (viewport_size - _map_world_size) * 0.5
+	_map_offset = _clamp_map_offset(_map_offset)
+
+
+## 对地图偏移做边界钳制，防止玩家把整个战场拖出屏幕。
+##
+## 调用场景：初始化偏移、拖拽更新位置时。
+## 主要逻辑：限制 X/Y 偏移范围，让世界矩形始终覆盖住整个视口。
+func _clamp_map_offset(offset: Vector2) -> Vector2:
+	var viewport_size: Vector2 = get_viewport_rect().size
+	var min_offset_x: float = min(0.0, viewport_size.x - _map_world_size.x)
+	var min_offset_y: float = min(0.0, viewport_size.y - _map_world_size.y)
+	return Vector2(
+		clamp(offset.x, min_offset_x, 0.0),
+		clamp(offset.y, min_offset_y, 0.0)
+	)
+
+
+## 更新地图偏移并同步所有依赖屏幕坐标的表现节点。
+##
+## 调用场景：地图拖拽、开局居中、窗口尺寸变化后的重新钳制。
+## 主要逻辑：统一刷新城市视图、升级面板和战场重绘，避免平移后出现道路/城市/按钮错位。
+func _set_map_offset(offset: Vector2) -> void:
+	_map_offset = _clamp_map_offset(offset)
+	if is_node_ready():
+		_refresh_view()
+
+
+## 根据输入位置判断当前是否允许开始拖拽地图。
+##
+## 调用场景：鼠标按下或触摸开始时。
+## 主要逻辑：覆盖层、出兵弹窗和 HUD 区域不允许触发拖拽，只在战场区记录拖拽候选。
+func _can_start_map_drag(pointer_position: Vector2) -> bool:
+	if _game_over or not _game_started or order_dialog_layer.visible or overlay_layer.visible:
+		return false
+	if bottom_panel.get_global_rect().has_point(pointer_position):
+		return false
+	if floating_upgrade_panel.visible and floating_upgrade_panel.get_global_rect().has_point(pointer_position):
+		return false
+	return true
+
+
+## 记录一次地图拖拽候选，等待后续移动距离判断是否真正开始拖拽。
+##
+## 调用场景：鼠标左键按下或单指触摸开始时。
+## 主要逻辑：缓存指针种类、编号和起点，后续只有同一指针移动超过阈值才会进入拖拽态。
+func _begin_map_drag_candidate(pointer_position: Vector2, pointer_kind: String, pointer_index: int = -1) -> void:
+	_drag_candidate_active = true
+	_drag_pointer_kind = pointer_kind
+	_drag_pointer_index = pointer_index
+	_drag_press_position = pointer_position
+	_drag_last_position = pointer_position
+	_is_dragging_map = false
+
+
+## 在拖拽候选阶段根据移动距离决定是否切换为真正的地图拖拽。
+##
+## 调用场景：鼠标移动或触控拖动事件到来时。
+## 主要逻辑：未过阈值时保持候选态；超过阈值后进入拖拽态，并在每次移动时增量更新地图偏移。
+func _update_map_drag(pointer_position: Vector2) -> bool:
+	if not _drag_candidate_active:
+		return false
+	if not _is_dragging_map and pointer_position.distance_to(_drag_press_position) < DRAG_START_DISTANCE:
+		return false
+
+	_is_dragging_map = true
+	var delta: Vector2 = pointer_position - _drag_last_position
+	_drag_last_position = pointer_position
+	_set_map_offset(_map_offset + delta)
+	return true
+
+
+## 结束当前地图拖拽或拖拽候选状态。
+##
+## 调用场景：鼠标左键抬起或触控结束时。
+## 主要逻辑：返回本次是否真的发生过拖拽，供点击/取消选城逻辑决定是否忽略这次释放。
+func _finish_map_drag(pointer_kind: String, pointer_index: int = -1) -> bool:
+	if not _drag_candidate_active:
+		return false
+	if _drag_pointer_kind != pointer_kind:
+		return false
+	if pointer_kind == "touch" and _drag_pointer_index != pointer_index:
+		return false
+
+	var was_dragging: bool = _is_dragging_map
+	_drag_candidate_active = false
+	_drag_pointer_kind = ""
+	_drag_pointer_index = -1
+	_is_dragging_map = false
+	return was_dragging
+
+
 ## 展示开局说明面板，并暂停战局推进。
 ##
 ## 调用场景：首次进入场景、点击重新开始后新开一局时。
@@ -987,7 +1133,7 @@ func _show_play_state() -> void:
 	_overlay_mode = "play"
 	overlay_layer.visible = false
 	status_label.text = "先点蓝色城市，再点目标城市，然后在弹窗里确认出兵人数。"
-	hint_label.text = "点空白可取消选城；选中己方城市后还能直接在底部升防、升产或升级。"
+	hint_label.text = "拖拽地图可查看远处城市；点空白可取消选城；选中己方城市后还能直接升级。"
 	_play_sfx(_select_sfx_stream)
 	_play_bgm_if_needed()
 	_refresh_view()
@@ -1039,18 +1185,87 @@ func _is_gameplay_paused() -> bool:
 ## 主要逻辑：不再依赖 `_unhandled_input()` 的分发时机，而是主动判断点击是否命中城市或 UI；
 ## 只有真正点到战场空白区域时，才取消当前选城。
 func _input(event: InputEvent) -> void:
-	if _selected_city_id == -1 or _game_over or not _game_started or order_dialog_layer.visible or _manual_paused or overlay_layer.visible:
+	if _game_over or not _game_started or order_dialog_layer.visible or overlay_layer.visible:
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		_handle_mouse_drag_input(event)
+	elif event is InputEventMouseMotion:
+		_handle_mouse_motion_input(event)
+	elif event is InputEventScreenTouch:
+		_handle_touch_drag_input(event)
+	elif event is InputEventScreenDrag:
+		_handle_screen_drag_input(event)
+
+
+## 处理桌面端鼠标按下/抬起，以区分地图拖拽和普通点击。
+##
+## 调用场景：主场景收到鼠标左键事件时。
+## 主要逻辑：按下时记录拖拽候选；抬起时若发生过拖拽则直接结束，
+## 若没有拖拽且当前存在选中城市，再把真正的空白点击转换成取消选择。
+func _handle_mouse_drag_input(event: InputEventMouseButton) -> void:
+	if event.pressed:
+		if _manual_paused or not _can_start_map_drag(event.position):
+			return
+		_begin_map_drag_candidate(event.position, "mouse")
 		return
 
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if _should_ignore_selection_cancel(event.position):
-			return
-		_clear_selection_with_message("已取消选择。重新点一个蓝色城市即可。")
+	var was_dragging: bool = _finish_map_drag("mouse")
+	if was_dragging:
 		get_viewport().set_input_as_handled()
-	elif event is InputEventScreenTouch and event.pressed:
-		if _should_ignore_selection_cancel(event.position):
+		return
+	if _selected_city_id == -1 or _manual_paused:
+		return
+	if _should_ignore_selection_cancel(event.position):
+		return
+	_clear_selection_with_message("已取消选择。重新点一个蓝色城市即可。")
+	get_viewport().set_input_as_handled()
+
+
+## 处理桌面端鼠标移动，用于实时平移大地图。
+##
+## 调用场景：主场景收到鼠标移动事件时。
+## 主要逻辑：只有存在拖拽候选或拖拽进行中时才处理；移动超过阈值后开始平移地图。
+func _handle_mouse_motion_input(event: InputEventMouseMotion) -> void:
+	if _manual_paused:
+		return
+	if _update_map_drag(event.position):
+		get_viewport().set_input_as_handled()
+
+
+## 处理移动端/Web 的触摸开始与结束事件。
+##
+## 调用场景：主场景收到单点触控事件时。
+## 主要逻辑：触摸开始时记录拖拽候选；触摸结束时若本次已经拖拽过则忽略，
+## 否则保留点击语义，让城市节点或空白取消逻辑继续生效。
+func _handle_touch_drag_input(event: InputEventScreenTouch) -> void:
+	if event.pressed:
+		if _manual_paused or not _can_start_map_drag(event.position):
 			return
-		_clear_selection_with_message("已取消选择。重新点一个蓝色城市即可。")
+		_begin_map_drag_candidate(event.position, "touch", event.index)
+		return
+
+	var was_dragging: bool = _finish_map_drag("touch", event.index)
+	if was_dragging:
+		get_viewport().set_input_as_handled()
+		return
+	if _selected_city_id == -1 or _manual_paused:
+		return
+	if _should_ignore_selection_cancel(event.position):
+		return
+	_clear_selection_with_message("已取消选择。重新点一个蓝色城市即可。")
+	get_viewport().set_input_as_handled()
+
+
+## 处理移动端/Web 的单指拖动事件。
+##
+## 调用场景：主场景收到 `InputEventScreenDrag` 时。
+## 主要逻辑：只接受当前激活手指的拖动；一旦超过阈值就持续更新地图偏移。
+func _handle_screen_drag_input(event: InputEventScreenDrag) -> void:
+	if _manual_paused:
+		return
+	if _drag_pointer_kind != "touch" or _drag_pointer_index != event.index:
+		return
+	if _update_map_drag(event.position):
 		get_viewport().set_input_as_handled()
 
 
@@ -1059,10 +1274,11 @@ func _input(event: InputEvent) -> void:
 ## 调用场景：空白点击取消选择前的命中判定。
 ## 主要逻辑：按城市中心和表现节点的矩形点击范围做包围盒测试；命中任意城市则返回该城市编号，否则返回 -1。
 func _pick_city_at_position(pointer_position: Vector2) -> int:
+	var world_position: Vector2 = _get_world_position(pointer_position)
 	var half_size: Vector2 = PrototypeCityViewRef.CITY_SIZE * 0.5
 	for city in _cities:
 		var city_rect := Rect2(city.position - half_size, PrototypeCityViewRef.CITY_SIZE)
-		if city_rect.has_point(pointer_position):
+		if city_rect.has_point(world_position):
 			return city.city_id
 	return -1
 
@@ -1237,18 +1453,30 @@ func _get_active_ai_owners() -> Array[int]:
 ## 调用场景：主场景每次重绘时最先执行。
 ## 主要逻辑：先铺一层草地底色，再绘制几块半透明土地色斑和草纹线条，让战场更像户外地表。
 func _draw_battlefield_background() -> void:
-	draw_rect(Rect2(Vector2.ZERO, Vector2(720.0, 1280.0)), Color(0.42, 0.58, 0.31))
+	var world_rect := Rect2(_map_offset, _map_world_size)
+	draw_rect(world_rect, Color(0.42, 0.58, 0.31))
 	var dirt_patches: Array[Rect2] = [
-		Rect2(Vector2(36.0, 180.0), Vector2(240.0, 160.0)),
-		Rect2(Vector2(420.0, 250.0), Vector2(220.0, 150.0)),
-		Rect2(Vector2(120.0, 640.0), Vector2(300.0, 180.0)),
-		Rect2(Vector2(430.0, 910.0), Vector2(210.0, 170.0))
+		Rect2(Vector2(0.05, 0.08), Vector2(0.22, 0.08)),
+		Rect2(Vector2(0.56, 0.16), Vector2(0.2, 0.08)),
+		Rect2(Vector2(0.18, 0.42), Vector2(0.26, 0.1)),
+		Rect2(Vector2(0.6, 0.7), Vector2(0.2, 0.09))
 	]
 	for patch in dirt_patches:
-		draw_rect(patch, Color(0.55, 0.46, 0.28, 0.32))
+		var patch_rect := Rect2(
+			_get_screen_position(Vector2(patch.position.x * _map_world_size.x, patch.position.y * _map_world_size.y)),
+			Vector2(patch.size.x * _map_world_size.x, patch.size.y * _map_world_size.y)
+		)
+		draw_rect(patch_rect, Color(0.55, 0.46, 0.28, 0.32))
 	for band_index: int in range(10):
-		var y: float = 90.0 + float(band_index) * 110.0
-		draw_line(Vector2(0.0, y), Vector2(720.0, y + 18.0), Color(0.5, 0.66, 0.36, 0.18), 24.0, true)
+		var ratio: float = float(band_index + 1) / 11.0
+		var y: float = ratio * _map_world_size.y
+		draw_line(
+			_get_screen_position(Vector2(0.0, y)),
+			_get_screen_position(Vector2(_map_world_size.x, y + 18.0)),
+			Color(0.5, 0.66, 0.36, 0.18),
+			24.0,
+			true
+		)
 
 
 ## 处理底部暂停按钮。

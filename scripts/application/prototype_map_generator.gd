@@ -4,8 +4,8 @@ extends RefCounted
 const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
 const PrototypeCityStateRef = preload("res://scripts/domain/prototype_city_state.gd")
 
-const MAP_SIZE: Vector2 = Vector2(720.0, 1280.0)
-const PADDING: Vector2 = Vector2(90.0, 220.0)
+const DEFAULT_MAP_SIZE: Vector2 = Vector2(1200.0, 2200.0)
+const MAP_PADDING_RATIO: Vector2 = Vector2(0.125, 0.14)
 const MIN_CITY_DISTANCE: float = 170.0
 const CITY_NAME_POOL: Array[String] = [
 	"长安", "洛阳", "建康", "临安", "大梁", "邺城", "襄阳", "成都", "江陵", "会稽",
@@ -30,8 +30,8 @@ const PRODUCTION_BY_LEVEL: Dictionary = {
 ## 主要逻辑：先随机生成满足最小间距的城市坐标，再基于纵向排序与最近邻补边构造连通道路，
 ## 最后按开局电脑数量为玩家和多个 AI 势力分配起始城市，其余城市保持中立；
 ## 每座城市会额外得到防御和产能属性，等级继续决定容量上限。
-func generate_map(city_count: int, random: RandomNumberGenerator, ai_count: int = 1) -> Array:
-	var positions: Array[Vector2] = _generate_positions(city_count, random)
+func generate_map(city_count: int, random: RandomNumberGenerator, ai_count: int = 1, map_size: Vector2 = DEFAULT_MAP_SIZE) -> Array:
+	var positions: Array[Vector2] = _generate_positions(city_count, random, map_size)
 	var graph: Dictionary = _build_graph(positions)
 	var city_names: Array[String] = _pick_city_names(city_count, random)
 	var start_owners: Dictionary = _pick_start_owners(positions, ai_count)
@@ -152,15 +152,19 @@ func _pick_city_names(city_count: int, random: RandomNumberGenerator) -> Array[S
 ## 调用场景：地图生成流程内部。
 ## 主要逻辑：采用有限次随机尝试，若候选点与已有点的最小距离不足则丢弃；
 ## 若随机阶段未凑够数量，再使用兜底网格点补齐，避免生成失败。
-func _generate_positions(city_count: int, random: RandomNumberGenerator) -> Array[Vector2]:
+func _generate_positions(city_count: int, random: RandomNumberGenerator, map_size: Vector2) -> Array[Vector2]:
 	var positions: Array[Vector2] = []
 	var attempts: int = 0
+	var padding: Vector2 = Vector2(
+		max(90.0, map_size.x * MAP_PADDING_RATIO.x),
+		max(220.0, map_size.y * MAP_PADDING_RATIO.y)
+	)
 
 	while positions.size() < city_count and attempts < 4000:
 		attempts += 1
 		var candidate := Vector2(
-			random.randf_range(PADDING.x, MAP_SIZE.x - PADDING.x),
-			random.randf_range(PADDING.y, MAP_SIZE.y - PADDING.y)
+			random.randf_range(padding.x, map_size.x - padding.x),
+			random.randf_range(padding.y, map_size.y - padding.y)
 		)
 		var valid: bool = true
 		for existing: Vector2 in positions:
@@ -171,13 +175,18 @@ func _generate_positions(city_count: int, random: RandomNumberGenerator) -> Arra
 			positions.append(candidate)
 
 	if positions.size() < city_count:
-		for row: int in range(5):
-			for col: int in range(3):
+		var row_count: int = max(3, int(ceil(sqrt(float(city_count)))))
+		var column_count: int = max(3, int(ceil(float(city_count) / float(row_count))))
+		var usable_size: Vector2 = map_size - padding * 2.0
+		var horizontal_step: float = usable_size.x / float(max(1, column_count - 1))
+		var vertical_step: float = usable_size.y / float(max(1, row_count - 1))
+		for row: int in range(row_count):
+			for col: int in range(column_count):
 				if positions.size() >= city_count:
 					break
 				var fallback := Vector2(
-					150.0 + float(col) * 210.0,
-					260.0 + float(row) * 190.0
+					padding.x + float(col) * horizontal_step,
+					padding.y + float(row) * vertical_step
 				)
 				var fallback_valid: bool = true
 				for existing: Vector2 in positions:
