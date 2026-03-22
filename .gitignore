@@ -1,8 +1,7 @@
 # Godot editor cache and imported metadata
 .godot/
 
-# Godot export presets and local export output
-export_presets.cfg
+# Godot local export cache
 .export/
 
 # Mono / C# build artifacts
