@@ -13,12 +13,15 @@ var city_id: int = -1
 var city_name: String = ""
 var city_owner: int = PrototypeCityOwnerRef.NEUTRAL
 var city_level: int = 1
+var city_defense: int = 1
+var city_production_rate: float = 1.0
 var soldiers: int = 0
 var is_selected: bool = false
 
 @onready var collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var name_label: Label = $NameLabel
 @onready var soldier_label: Label = $SoldierLabel
+@onready var attr_label: Label = $AttrLabel
 
 
 ## 初始化城市表现节点的固定数据与输入碰撞区域。
@@ -37,15 +40,19 @@ func setup(p_city_id: int, p_city_name: String) -> void:
 ## 根据城市实时状态刷新文字、颜色与选中高亮。
 ##
 ## 调用场景：每次地图重绘、进攻结算后、产兵后。
-## 主要逻辑：同步内部显示数据，文本展示城市名称与当前士兵数，颜色由阵营和选中态共同决定。
+## 主要逻辑：同步内部显示数据，把名称、兵力和属性拆成三层文本展示，
+## 让竖屏小地图上的信息层级更稳定、字体节奏更统一。
 func sync_from_state(city, selected: bool) -> void:
 	city_owner = city.owner
 	city_level = city.level
+	city_defense = city.defense
+	city_production_rate = city.production_rate
 	soldiers = city.soldiers
 	is_selected = selected
 	position = city.position
-	name_label.text = "%s Lv.%d" % [city.name, city.level]
+	name_label.text = city.name
 	soldier_label.text = "%d/%d" % [city.soldiers, city.max_soldiers]
+	attr_label.text = "Lv.%d  防%d  产%.1f" % [city.level, city.defense, city.production_rate]
 	queue_redraw()
 
 
@@ -142,6 +149,8 @@ func _draw_level_banner(gatehouse_rect: Rect2, banner_color: Color) -> void:
 ## 主要逻辑：识别鼠标左键与单点触控按下事件，统一转换为 city_pressed 信号。
 func _input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_viewport.set_input_as_handled()
 		city_pressed.emit(city_id)
 	elif event is InputEventScreenTouch and event.pressed:
+		_viewport.set_input_as_handled()
 		city_pressed.emit(city_id)

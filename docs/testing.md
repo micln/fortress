@@ -6,14 +6,27 @@
 
 ## 范围
 
-- `battle_resolver.gd`：兵力结算
-- `game_state.gd`：产兵推进、合法攻击、邻接查询、胜负判断
-- `enemy_ai.gd`：基础攻击决策
-- `map_generator.gd`：地图连通性
-- `main_game.gd`：通过项目启动验证确保场景装配无语法错误
+- `prototype_battle_service.gd`：兵力结算、防御参与攻城、产能驱动产兵
+- `prototype_city_state.gd`：容量上限、产能累计、防御门槛、升级成本
+- `prototype_enemy_ai_service.gd`：基于推荐兵力与城市属性的攻击决策、无战可打时的养城升级
+- `prototype_map_generator.gd`：地图连通性、开局势力分配、城市属性生成
+- `prototype_main_game.gd`：通过项目启动验证确保场景装配、升级按钮和出兵预估无语法错误
 
 ## 执行
 
 - 通过 `tests/test_runner.gd` 运行最小自定义测试集
 - 对较大改动执行 Godot 项目启动验证，确保无语法错误
 - 在沙箱环境下运行 headless 测试时，建议设置 `HOME=/tmp XDG_DATA_HOME=/tmp`，避免 Godot 写入 `user://logs` 时崩溃
+
+## CI 构建验证
+
+- `master` 分支推送后，GitHub Actions 需要能成功导出 `Web` preset。
+- 导出产物至少应包含 `index.html`、对应的 `.js`、`.wasm` 与资源包文件。
+- 发布流程完成后，GitHub Pages 应更新到最新一次成功构建。
+
+## Web 试玩冒烟检查
+
+- 浏览器打开后应能进入主场景，而不是停留在加载失败或脚本报错状态。
+- 中文 UI 文本、城市名称和说明文案不应出现乱码、空白或方块字。
+- 至少完成一次选城、打开出兵面板和暂停/继续的手工抽检。
+- 当前阶段采用“构建成功 + 手工试玩抽检”的方式验证 Web 版，后续可再补自动截图或浏览器冒烟测试。

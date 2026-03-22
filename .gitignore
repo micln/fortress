@@ -19,3 +19,6 @@ obj/
 *.swp
 *.swo
 *~
+
+# Local build/export output
+build/

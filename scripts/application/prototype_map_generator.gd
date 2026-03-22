@@ -12,10 +12,15 @@ const CITY_NAME_POOL: Array[String] = [
 	"幽州", "并州", "凉州", "泉州", "扬州", "益州", "荆州", "寿春", "宛城", "汴州",
 	"金陵", "广陵", "姑苏", "晋阳", "涿郡", "琅琊", "番禺", "交州", "武威", "敦煌"
 ]
-const LEVEL_CAPACITY: Dictionary = {
-	1: 20,
-	2: 35,
-	3: 55
+const DEFENSE_BY_LEVEL: Dictionary = {
+	1: Vector2i(1, 2),
+	2: Vector2i(2, 3),
+	3: Vector2i(3, 4)
+}
+const PRODUCTION_BY_LEVEL: Dictionary = {
+	1: Vector2(0.8, 1.0),
+	2: Vector2(1.0, 1.3),
+	3: Vector2(1.2, 1.6)
 }
 
 
@@ -23,7 +28,8 @@ const LEVEL_CAPACITY: Dictionary = {
 ##
 ## 调用场景：开局初始化或后续重开战局。
 ## 主要逻辑：先随机生成满足最小间距的城市坐标，再基于纵向排序与最近邻补边构造连通道路，
-## 最后按开局电脑数量为玩家和多个 AI 势力分配起始城市，其余城市保持中立。
+## 最后按开局电脑数量为玩家和多个 AI 势力分配起始城市，其余城市保持中立；
+## 每座城市会额外得到防御和产能属性，等级继续决定容量上限。
 func generate_map(city_count: int, random: RandomNumberGenerator, ai_count: int = 1) -> Array:
 	var positions: Array[Vector2] = _generate_positions(city_count, random)
 	var graph: Dictionary = _build_graph(positions)
@@ -34,15 +40,21 @@ func generate_map(city_count: int, random: RandomNumberGenerator, ai_count: int 
 	for index: int in range(city_count):
 		var owner: int = int(start_owners.get(index, PrototypeCityOwnerRef.NEUTRAL))
 		var level: int = random.randi_range(1, 3)
-		var max_soldiers: int = int(LEVEL_CAPACITY[level])
+		var max_soldiers: int = int(PrototypeCityStateRef.LEVEL_CAPACITY[level])
+		var defense: int = _roll_defense_for_level(level, random)
+		var production_rate: float = _roll_production_for_level(level, random)
 		var soldiers: int = random.randi_range(3, min(7, max_soldiers))
 		if owner == PrototypeCityOwnerRef.PLAYER:
 			level = 2
-			max_soldiers = int(LEVEL_CAPACITY[level])
+			max_soldiers = int(PrototypeCityStateRef.LEVEL_CAPACITY[level])
+			defense = 2
+			production_rate = 1.1
 			soldiers = 14
 		elif PrototypeCityOwnerRef.is_ai(owner):
 			level = 2
-			max_soldiers = int(LEVEL_CAPACITY[level])
+			max_soldiers = int(PrototypeCityStateRef.LEVEL_CAPACITY[level])
+			defense = 2
+			production_rate = 1.1
 			soldiers = max(8, 11 - ai_count)
 
 		var neighbors: Array[int] = []
@@ -58,11 +70,31 @@ func generate_map(city_count: int, random: RandomNumberGenerator, ai_count: int 
 				level,
 				max_soldiers,
 				soldiers,
-				neighbors
+				neighbors,
+				defense,
+				production_rate
 			)
 		)
 
 	return cities
+
+
+## 按城市等级随机出一个防御值区间。
+##
+## 调用场景：地图生成流程内部。
+## 主要逻辑：高等级城市会落在更高的防御区间，让它们更难被正面速推。
+func _roll_defense_for_level(level: int, random: RandomNumberGenerator) -> int:
+	var range_pair: Vector2i = DEFENSE_BY_LEVEL.get(level, Vector2i(1, 2))
+	return random.randi_range(range_pair.x, range_pair.y)
+
+
+## 按城市等级随机出一个产能速度。
+##
+## 调用场景：地图生成流程内部。
+## 主要逻辑：高等级城市会落在更高的产能区间；产能支持小数，供每秒累计产兵使用。
+func _roll_production_for_level(level: int, random: RandomNumberGenerator) -> float:
+	var range_pair: Vector2 = PRODUCTION_BY_LEVEL.get(level, Vector2(0.8, 1.0))
+	return snappedf(random.randf_range(range_pair.x, range_pair.y), 0.1)
 
 
 ## 为玩家与多个 AI 势力挑选彼此分散的开局主城。

@@ -2,6 +2,9 @@ class_name PrototypeBattleService
 extends RefCounted
 
 const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
+const UPGRADE_LEVEL: String = "level"
+const UPGRADE_DEFENSE: String = "defense"
+const UPGRADE_PRODUCTION: String = "production"
 
 
 ## 执行一次同阵营城市之间的运兵，并返回结果描述。
@@ -74,35 +77,41 @@ func prepare_attack(source, target, _travel_duration: float, attackers: int) -> 
 ## 预测目标城市在行军持续时间内会新增的守军数量。
 ##
 ## 调用场景：出兵准备阶段决定最少派兵人数时。
-## 主要逻辑：只有已占领城市才会产兵；按行军时长向下取整估算路上会完整触发多少次整秒产兵。
+## 主要逻辑：只有已占领城市才会产兵；按行军时长和目标城产能估算路上会累计产出多少整兵，
+## 以便推荐出兵数和到达预估都能反映城市产能差异。
 func _predict_target_growth(target, travel_duration: float) -> int:
 	if not target.is_occupied():
 		return 0
-	return int(floor(travel_duration + 0.001))
+	return int(floor(target.production_rate * travel_duration + 0.001))
 
 
 ## 计算一次进攻在当前行军时长下的推荐最少出兵人数。
 ##
 ## 调用场景：玩家打开出兵数量对话框、敌方 AI 自动下单时。
-## 主要逻辑：把目标当前守军和路上预计新增守军相加，再加 1 作为推荐值；
+## 主要逻辑：把目标当前守军、固定防御值和路上预计新增守军相加，再加 1 作为推荐值；
 ## 若推荐人数超过出发城市现有兵力，则回退为全军出动。
 func get_recommended_attack_count(source, target, travel_duration: float) -> int:
-	var predicted_defenders: int = target.soldiers + _predict_target_growth(target, travel_duration)
-	return min(source.soldiers, predicted_defenders + 1)
+	var predicted_growth: int = _predict_target_growth(target, travel_duration)
+	var effective_defenders: int = target.get_effective_defense(predicted_growth)
+	return min(source.soldiers, effective_defenders + 1)
 
 
 ## 预测某次进攻在到达时的大致结果，供出兵弹窗实时展示。
 ##
 ## 调用场景：玩家调整出兵数量时。
-## 主要逻辑：基于当前守军、预计路上产兵和玩家选择的出兵数，给出“能否占领”和大致剩余兵力。
+## 主要逻辑：基于当前守军、防御值、预计路上产兵和玩家选择的出兵数，
+## 给出“能否占领”和大致剩余兵力。
 func preview_attack_outcome(source, target, travel_duration: float, attackers: int) -> Dictionary:
 	var predicted_growth: int = _predict_target_growth(target, travel_duration)
 	var predicted_defenders: int = target.soldiers + predicted_growth
-	var predicted_capture: bool = attackers >= predicted_defenders
-	var predicted_remaining: int = max(1, attackers - predicted_defenders) if predicted_capture else predicted_defenders - attackers
+	var effective_defenders: int = target.get_effective_defense(predicted_growth)
+	var predicted_capture: bool = attackers >= effective_defenders
+	var predicted_remaining: int = max(1, attackers - effective_defenders) if predicted_capture else effective_defenders - attackers
 	return {
 		"predicted_growth": predicted_growth,
 		"predicted_defenders": predicted_defenders,
+		"predicted_effective_defenders": effective_defenders,
+		"predicted_defense_bonus": target.defense,
 		"predicted_capture": predicted_capture,
 		"predicted_remaining": predicted_remaining,
 		"travel_duration": travel_duration,
@@ -113,7 +122,8 @@ func preview_attack_outcome(source, target, travel_duration: float, attackers: i
 ## 在进攻单位抵达后，对目标城市执行实际战斗结算。
 ##
 ## 调用场景：进攻行军单位到达终点时。
-## 主要逻辑：若目标城此时已变为同阵营，则直接并入驻军；否则按到达时的双方兵力做结算。
+## 主要逻辑：若目标城此时已变为同阵营，则直接并入驻军；否则按到达时的守军与固定防御值做结算，
+## 使高防御城市需要额外兵力才能被真正攻下。
 func resolve_attack_arrival(target, attacker_owner: int, attackers: int) -> Dictionary:
 	if target.owner == attacker_owner:
 		target.add_soldiers(attackers)
@@ -124,8 +134,9 @@ func resolve_attack_arrival(target, attacker_owner: int, attackers: int) -> Dict
 			"message": "%s 接收了 %d 名友军增援。" % [target.name, attackers]
 		}
 
-	if attackers >= target.soldiers:
-		var remaining_soldiers: int = max(1, attackers - target.soldiers)
+	var effective_defenders: int = target.get_effective_defense()
+	if attackers >= effective_defenders:
+		var remaining_soldiers: int = max(1, attackers - effective_defenders)
 		target.owner = attacker_owner
 		target.soldiers = min(target.max_soldiers, remaining_soldiers)
 		return {
@@ -183,11 +194,105 @@ func resolve_marching_encounter(left_owner: int, left_count: int, right_owner: i
 ## 为所有已占领城市执行一次产兵。
 ##
 ## 调用场景：每秒一次的战局 Tick。
-## 主要逻辑：遍历城市列表，仅对非中立城市增加 1 名士兵。
+## 主要逻辑：遍历城市列表，根据每座城市自己的产能累计产兵；
+## 产能支持小数进度累计，且始终受城市容量上限约束。
 func produce_soldiers(cities: Array) -> void:
 	for city in cities:
-		if city.can_produce():
-			city.add_soldiers(1)
+		city.advance_production(1.0)
+
+
+## 返回指定城市当前三种升级选项的成本、上限与可用性。
+##
+## 调用场景：底部升级按钮文案刷新、AI 升级决策。
+## 主要逻辑：统一汇总等级、防御、产能三类升级的当前成本和可行性，避免表现层重复写判断。
+func get_city_upgrade_options(city) -> Dictionary:
+	return {
+		UPGRADE_LEVEL: {
+			"available": city.can_upgrade_level(),
+			"cost": city.get_level_upgrade_cost(),
+			"label": "升级"
+		},
+		UPGRADE_DEFENSE: {
+			"available": city.can_upgrade_defense(),
+			"cost": city.get_defense_upgrade_cost(),
+			"label": "升防"
+		},
+		UPGRADE_PRODUCTION: {
+			"available": city.can_upgrade_production(),
+			"cost": city.get_production_upgrade_cost(),
+			"label": "升产"
+		}
+	}
+
+
+## 对指定城市执行一次属性升级。
+##
+## 调用场景：玩家点击升级按钮、AI 决定优先养城时。
+## 主要逻辑：先校验城市归属、升级类型、是否到达上限和士兵是否足够，再调用领域对象真正应用升级并返回提示文案。
+func upgrade_city(city, upgrade_type: String) -> Dictionary:
+	if not city.is_occupied():
+		return {
+			"success": false,
+			"message": "%s 还没有归属，不能升级。" % city.name
+		}
+
+	match upgrade_type:
+		UPGRADE_LEVEL:
+			if not city.can_upgrade_level():
+				return {
+					"success": false,
+					"message": "%s 已达到最高等级。" % city.name
+				}
+			var level_cost: int = city.get_level_upgrade_cost()
+			if not city.has_enough_soldiers_for_upgrade(level_cost):
+				return {
+					"success": false,
+					"message": "%s 需要 %d 人才能升级等级。" % [city.name, level_cost]
+				}
+			city.apply_level_upgrade()
+			return {
+				"success": true,
+				"message": "%s 升到 Lv.%d，容量提升到 %d，上限更高了。" % [city.name, city.level, city.max_soldiers]
+			}
+		UPGRADE_DEFENSE:
+			if not city.can_upgrade_defense():
+				return {
+					"success": false,
+					"message": "%s 的防御已经到顶。" % city.name
+				}
+			var defense_cost: int = city.get_defense_upgrade_cost()
+			if not city.has_enough_soldiers_for_upgrade(defense_cost):
+				return {
+					"success": false,
+					"message": "%s 需要 %d 人才能升级防御。" % [city.name, defense_cost]
+				}
+			city.apply_defense_upgrade()
+			return {
+				"success": true,
+				"message": "%s 防御升到 %d，攻城方需要更多兵力了。" % [city.name, city.defense]
+			}
+		UPGRADE_PRODUCTION:
+			if not city.can_upgrade_production():
+				return {
+					"success": false,
+					"message": "%s 的产能已经到顶。" % city.name
+				}
+			var production_cost: int = city.get_production_upgrade_cost()
+			if not city.has_enough_soldiers_for_upgrade(production_cost):
+				return {
+					"success": false,
+					"message": "%s 需要 %d 人才能升级产能。" % [city.name, production_cost]
+				}
+			city.apply_production_upgrade()
+			return {
+				"success": true,
+				"message": "%s 产能升到 %.1f/秒，之后会更快产兵。" % [city.name, city.production_rate]
+			}
+		_:
+			return {
+				"success": false,
+				"message": "未知升级类型：%s" % upgrade_type
+			}
 
 
 ## 检查是否已经产生单方完全占领的胜负结果。

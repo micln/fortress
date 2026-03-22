@@ -2,21 +2,48 @@ class_name PrototypeCityState
 extends RefCounted
 
 const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
+const LEVEL_CAPACITY: Dictionary = {
+	1: 20,
+	2: 35,
+	3: 55,
+	4: 80,
+	5: 110
+}
+const LEVEL_UPGRADE_COST: Dictionary = {
+	1: 8,
+	2: 14,
+	3: 22,
+	4: 32
+}
+const DEFENSE_UPGRADE_COST: Dictionary = {
+	1: 6,
+	2: 10,
+	3: 15,
+	4: 21,
+	5: 28
+}
+const PRODUCTION_UPGRADE_STEP: float = 0.2
+const PRODUCTION_UPGRADE_MAX: float = 2.4
+const PRODUCTION_UPGRADE_COST_BASE: int = 7
 
 var city_id: int
 var name: String
 var position: Vector2
 var owner: int
 var level: int
+var defense: int
+var production_rate: float
 var max_soldiers: int
 var soldiers: int
 var neighbors: Array[int]
+var _production_progress: float = 0.0
 
 
 ## 初始化一个城市的运行时状态。
 ##
 ## 调用场景：地图生成后创建城市数据对象。
-## 主要逻辑：写入城市标识、坐标、归属、士兵数与邻接表，邻接表会复制一份避免外部共享引用。
+## 主要逻辑：写入城市标识、坐标、归属、防御、产能、等级、士兵数与邻接表，
+## 邻接表会复制一份避免外部共享引用；产能进度从 0 开始累计，供每秒产兵结算复用。
 func _init(
 	p_city_id: int,
 	p_name: String,
@@ -25,16 +52,21 @@ func _init(
 	p_level: int,
 	p_max_soldiers: int,
 	p_soldiers: int,
-	p_neighbors: Array[int]
+	p_neighbors: Array[int],
+	p_defense: int = 1,
+	p_production_rate: float = 1.0
 ) -> void:
 	city_id = p_city_id
 	name = p_name
 	position = p_position
 	owner = p_owner
 	level = p_level
+	defense = p_defense
+	production_rate = p_production_rate
 	max_soldiers = p_max_soldiers
 	soldiers = p_soldiers
 	neighbors = p_neighbors.duplicate()
+	_production_progress = 0.0
 
 
 ## 判断当前城市是否已被某一阵营占领。
@@ -75,3 +107,144 @@ func remove_soldiers(amount: int) -> void:
 ## 主要逻辑：只有占领中的城市且当前兵力未达到上限时，才允许继续产兵。
 func can_produce() -> bool:
 	return is_occupied() and soldiers < max_soldiers
+
+
+## 计算当前城市在攻城结算时的总防守需求。
+##
+## 调用场景：进攻推荐兵力、攻城预估、实际到城结算。
+## 主要逻辑：把当前守军、预计路上新增守军和固定防御值相加，得到攻方至少需要匹配的总门槛；
+## 但中立空城没有实际驻防者，因此不额外享受防御加成。
+func get_effective_defense(predicted_growth: int = 0) -> int:
+	var defense_bonus: int = max(0, defense) if is_occupied() else 0
+	return soldiers + max(0, predicted_growth) + defense_bonus
+
+
+## 为城市推进一次产能累计，并返回本次实际新产出的士兵数。
+##
+## 调用场景：每秒产兵 Tick。
+## 主要逻辑：先把城市产能按秒累加到内部进度，再把其中的整数部分转成士兵；
+## 若城市已满员或未被占领，则直接返回 0；若接近上限，则只产到容量上限并保留剩余小数进度。
+func advance_production(delta_seconds: float = 1.0) -> int:
+	if not can_produce():
+		return 0
+
+	_production_progress += max(0.0, production_rate * delta_seconds)
+	var produced: int = int(floor(_production_progress))
+	if produced <= 0:
+		return 0
+
+	var available_capacity: int = max_soldiers - soldiers
+	var actual_produced: int = min(available_capacity, produced)
+	soldiers += actual_produced
+	_production_progress -= float(actual_produced)
+	return actual_produced
+
+
+## 返回指定等级对应的人口上限。
+##
+## 调用场景：地图生成、等级升级、UI 展示未来升级收益时。
+## 主要逻辑：优先读取配置表；若传入等级越界，则钳制到当前支持的最大等级范围内。
+func get_capacity_for_level(target_level: int) -> int:
+	var clamped_level: int = clamp(target_level, 1, get_max_level())
+	return int(LEVEL_CAPACITY.get(clamped_level, LEVEL_CAPACITY[1]))
+
+
+## 返回当前系统支持的最高城市等级。
+##
+## 调用场景：升级可行性判断、UI 按钮禁用状态。
+## 主要逻辑：直接读取等级容量表的键数量，避免在多个文件里手写最大等级常量。
+func get_max_level() -> int:
+	return LEVEL_CAPACITY.size()
+
+
+## 判断当前城市是否还能继续提升等级。
+##
+## 调用场景：升级按钮状态刷新、AI 决策。
+## 主要逻辑：只有未达等级上限时才允许继续升级等级。
+func can_upgrade_level() -> bool:
+	return level < get_max_level()
+
+
+## 返回当前城市升级等级所需的士兵数。
+##
+## 调用场景：升级按钮文案、升级结算、AI 估算成本。
+## 主要逻辑：按“当前等级 -> 下一等级”的成本表读取，满级时返回 0。
+func get_level_upgrade_cost() -> int:
+	if not can_upgrade_level():
+		return 0
+	return int(LEVEL_UPGRADE_COST.get(level, 0))
+
+
+## 判断当前城市是否还能继续提升防御。
+##
+## 调用场景：升级按钮状态刷新、AI 决策。
+## 主要逻辑：防御目前采用离散整数档位，达到 5 后停止继续提升，避免单城过度难攻。
+func can_upgrade_defense() -> bool:
+	return defense < 5
+
+
+## 返回当前城市升级防御所需的士兵数。
+##
+## 调用场景：升级按钮文案、升级结算、AI 估算成本。
+## 主要逻辑：防御越高，再往上堆的投入越大，以抑制纯龟缩策略。
+func get_defense_upgrade_cost() -> int:
+	if not can_upgrade_defense():
+		return 0
+	return int(DEFENSE_UPGRADE_COST.get(defense, 34))
+
+
+## 判断当前城市是否还能继续提升产能。
+##
+## 调用场景：升级按钮状态刷新、AI 决策。
+## 主要逻辑：产能按 0.2 一档提升，达到 2.4/秒 后停止，避免后期爆兵过快。
+func can_upgrade_production() -> bool:
+	return production_rate < PRODUCTION_UPGRADE_MAX - 0.001
+
+
+## 返回当前城市升级产能所需的士兵数。
+##
+## 调用场景：升级按钮文案、升级结算、AI 估算成本。
+## 主要逻辑：当前产能越高，继续提升的成本越高，避免前期无脑只点产能最优。
+func get_production_upgrade_cost() -> int:
+	if not can_upgrade_production():
+		return 0
+	return int(round(PRODUCTION_UPGRADE_COST_BASE + production_rate * 6.0))
+
+
+## 判断当前城市是否有足够兵力支付某次升级成本。
+##
+## 调用场景：升级按钮状态刷新、应用层升级校验。
+## 主要逻辑：升级消耗直接来自城市驻军，因此必须保证当前兵力不少于成本。
+func has_enough_soldiers_for_upgrade(cost: int) -> bool:
+	return soldiers >= max(0, cost)
+
+
+## 应用一次等级升级。
+##
+## 调用场景：应用层已完成合法性校验后。
+## 主要逻辑：扣除升级成本、提升等级，并把容量更新到新等级对应上限。
+func apply_level_upgrade() -> void:
+	var cost: int = get_level_upgrade_cost()
+	remove_soldiers(cost)
+	level += 1
+	max_soldiers = get_capacity_for_level(level)
+
+
+## 应用一次防御升级。
+##
+## 调用场景：应用层已完成合法性校验后。
+## 主要逻辑：扣除升级成本，并把固定防御值提高 1 档。
+func apply_defense_upgrade() -> void:
+	var cost: int = get_defense_upgrade_cost()
+	remove_soldiers(cost)
+	defense += 1
+
+
+## 应用一次产能升级。
+##
+## 调用场景：应用层已完成合法性校验后。
+## 主要逻辑：扣除升级成本，并按固定步长提升产能，保留一位小数避免浮点漂移。
+func apply_production_upgrade() -> void:
+	var cost: int = get_production_upgrade_cost()
+	remove_soldiers(cost)
+	production_rate = snappedf(min(PRODUCTION_UPGRADE_MAX, production_rate + PRODUCTION_UPGRADE_STEP), 0.1)

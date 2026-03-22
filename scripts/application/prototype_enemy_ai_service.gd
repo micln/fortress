@@ -2,7 +2,7 @@ class_name PrototypeEnemyAiService
 extends RefCounted
 
 const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
-const MARCH_SPEED: float = 240.0
+const MARCH_SPEED: float = 180.0
 const DIFFICULTY_EASY: String = "easy"
 const DIFFICULTY_NORMAL: String = "normal"
 const DIFFICULTY_HARD: String = "hard"
@@ -46,7 +46,7 @@ func get_turn_interval() -> float:
 ## 根据当前难度和风格为指定 AI 势力选择本轮的最佳进攻指令。
 ##
 ## 调用场景：敌军行动定时器达到阈值时。
-## 主要逻辑：遍历所有敌军城市，结合路程、目标归属、推荐兵力、保留守军要求和风格权重进行打分，
+## 主要逻辑：遍历所有敌军城市，结合路程、目标归属、推荐兵力、目标防御、产能、保留守军要求和风格权重进行打分，
 ## 返回最值得发起的一次攻击以及建议派出的兵力。
 func choose_attack(cities: Array, battle_service, owner_id: int) -> Dictionary:
 	var best_source = null
@@ -67,12 +67,12 @@ func choose_attack(cities: Array, battle_service, owner_id: int) -> Dictionary:
 			var recommended_count: int = battle_service.get_recommended_attack_count(source, target, travel_duration)
 			var troop_count: int = _get_attack_troop_count(source.soldiers, recommended_count)
 			var reserve_after_attack: int = source.soldiers - troop_count
-			var minimum_advantage: int = _get_minimum_advantage()
+			var minimum_advantage: int = _get_required_advantage(target)
 			if troop_count <= 0:
 				continue
 			if reserve_after_attack < _get_reserve_requirement():
 				continue
-			if source.soldiers < target.soldiers + minimum_advantage:
+			if source.soldiers < target.get_effective_defense() + minimum_advantage:
 				continue
 
 			var score: float = _score_target(source, target, troop_count, recommended_count, travel_duration)
@@ -93,6 +93,46 @@ func choose_attack(cities: Array, battle_service, owner_id: int) -> Dictionary:
 	}
 
 
+## 根据当前局势为指定 AI 势力选择一次更值得的城市升级。
+##
+## 调用场景：本轮没有合适进攻时，AI 退而求其次选择养城。
+## 主要逻辑：遍历己方城市，结合当前风格、兵力冗余和三种升级收益打分，返回最值得投资的一次升级动作。
+func choose_upgrade(cities: Array, battle_service, owner_id: int) -> Dictionary:
+	var best_city = null
+	var best_upgrade_type: String = ""
+	var best_score: float = -INF
+
+	for city in cities:
+		if city.owner != owner_id:
+			continue
+
+		var options: Dictionary = battle_service.get_city_upgrade_options(city)
+		for upgrade_type_variant in options.keys():
+			var upgrade_type: String = String(upgrade_type_variant)
+			var option: Dictionary = options[upgrade_type]
+			if not bool(option.get("available", false)):
+				continue
+			var cost: int = int(option.get("cost", 0))
+			var reserve_after_upgrade: int = city.soldiers - cost
+			if reserve_after_upgrade < _get_reserve_requirement() + 2:
+				continue
+
+			var score: float = _score_upgrade(city, upgrade_type, cost)
+			if score > best_score:
+				best_score = score
+				best_city = city
+				best_upgrade_type = upgrade_type
+
+	if best_city == null:
+		return {}
+
+	return {
+		"city_id": best_city.city_id,
+		"upgrade_type": best_upgrade_type,
+		"owner_id": owner_id
+	}
+
+
 ## 计算当前难度下 AI 进攻时至少要比守军多出的兵力冗余。
 ##
 ## 调用场景：筛选可攻击目标时。
@@ -105,6 +145,17 @@ func _get_minimum_advantage() -> int:
 			return 2
 		_:
 			return 1
+
+
+## 计算面对当前目标时 AI 需要保留的额外优势兵力。
+##
+## 调用场景：筛选候选攻击目标时。
+## 主要逻辑：对中立空城或低兵力中立城适当放宽门槛，避免 AI 因为通用保守阈值而放弃明显划算的扩张机会。
+func _get_required_advantage(target) -> int:
+	var minimum_advantage: int = _get_minimum_advantage()
+	if PrototypeCityOwnerRef.is_neutral(target.owner):
+		return max(0, minimum_advantage - 2)
+	return minimum_advantage
 
 
 ## 计算当前风格下每次出兵后源城至少应保留的兵力。
@@ -139,21 +190,48 @@ func _get_attack_troop_count(source_soldiers: int, recommended_count: int) -> in
 ## 给一个候选目标计算综合得分。
 ##
 ## 调用场景：AI 在多个可攻击目标之间择优时。
-## 主要逻辑：综合考虑目标归属、路程远近、预计盈余兵力和当前风格偏好，得到一个可比较的浮点评分。
+## 主要逻辑：综合考虑目标归属、路程远近、预计盈余兵力、目标防御与产能威胁和当前风格偏好，
+## 得到一个可比较的浮点评分；进攻型会更主动压迫玩家，但不会在多人局里无脑忽略更优的非玩家目标。
 func _score_target(source, target, troop_count: int, recommended_count: int, travel_duration: float) -> float:
 	var score: float = float(troop_count - recommended_count)
 	score += float(source.level) * 0.2
+	score -= float(target.defense) * 0.45
+	score += target.production_rate * 0.7
 	score -= travel_duration * (0.3 if _style == STYLE_AGGRESSIVE else 0.8)
 
 	if target.owner == PrototypeCityOwnerRef.PLAYER:
-		score += 2.2 if _style == STYLE_AGGRESSIVE else 0.6
+		score += 2.2 if _style == STYLE_AGGRESSIVE else 0.5
 	else:
-		score += 0.4 if _style == STYLE_AGGRESSIVE else 1.4
+		score += 0.5 if _style == STYLE_AGGRESSIVE else 1.2
 
 	if _difficulty == DIFFICULTY_HARD:
 		score += 0.6
 	elif _difficulty == DIFFICULTY_EASY:
 		score -= 0.4
+
+	return score
+
+
+## 给一个候选升级动作计算综合得分。
+##
+## 调用场景：AI 在“升防、升产、升级”之间择优时。
+## 主要逻辑：结合当前风格、城市兵力富余、现有属性短板和升级成本，给出一个可比较分值。
+func _score_upgrade(city, upgrade_type: String, cost: int) -> float:
+	var reserve_after_upgrade: int = city.soldiers - cost
+	var score: float = float(reserve_after_upgrade) * 0.08 - float(cost) * 0.05
+
+	match upgrade_type:
+		"level":
+			score += 2.3 + float(city.level) * 0.45
+		"defense":
+			score += 1.6 + (1.1 if _style == STYLE_DEFENSIVE else 0.2) - float(city.defense) * 0.12
+		"production":
+			score += 1.8 + (0.9 if _style == STYLE_AGGRESSIVE else 0.4) - city.production_rate * 0.2
+
+	if _difficulty == DIFFICULTY_HARD:
+		score += 0.25
+	elif _difficulty == DIFFICULTY_EASY:
+		score -= 0.15
 
 	return score
 

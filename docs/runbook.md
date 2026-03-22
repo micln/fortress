@@ -14,11 +14,34 @@
 - 如果点击无效，先检查输入层是否正确识别触控和鼠标事件。
 - 如果行军部队穿模或直接穿过彼此，优先检查路上遭遇战逻辑与行军碰撞判定。
 
+## GitHub Pages 发布
+
+- 推送到 `master` 后，GitHub Actions 会自动执行 Web 导出，并将 `build/web/` 产物发布到 GitHub Pages。
+- 发布前需要在仓库设置中启用 Pages，并选择由 GitHub Actions 负责部署。
+- CI 使用 Godot `4.6.1` 执行资源导入与 Web 导出，导出后会校验关键 Web 文件是否存在。
+- 若只是验证构建是否成功，可以直接查看对应 workflow 的 artifact 与部署日志。
+
 ## 验证清单
 
 - 竖屏显示是否正常。
 - 城市是否能随机生成并连接道路。
 - 被占领城市是否按秒产兵。
+- 选中己方城市后，底部升级按钮是否会随兵力与满级状态正确启用/禁用。
 - 玩家与多个电脑势力是否都能按规则发起进攻。
+- 点击战场空白区域时，当前选城是否会立即取消。
 - 不同势力的行军单位在道路上相遇时是否会先战斗抵消。
 - 战斗结算是否符合 `docs/gameplay.md`。
+
+## Web 版验证清单
+
+- GitHub Pages 页面是否能正常打开并进入主场景。
+- 城市名称、按钮文案、说明面板中的中文是否正常显示。
+- 竖屏布局在浏览器中是否保持可读，顶部和底部 HUD 是否没有越界。
+- 鼠标点击是否能正常完成选城、打开出兵面板、暂停和重新开始。
+
+## Web 发布故障排查
+
+- 如果 Pages 没有更新，先检查 `deploy-web` workflow 是否执行成功。
+- 如果 workflow 失败在“Verify exported web files”，优先检查 `Web` preset、导出模板版本和 `build/web/` 下的导出文件名。
+- 如果 Web 页面可打开但中文显示异常，先检查 `assets/fonts/NotoSansSC-Regular.otf` 是否仍被项目引用并导出。
+- 如果导出失败，优先检查 `export_presets.cfg` 中的 `Web` preset 是否仍指向 `build/web/index.html`。

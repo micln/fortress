@@ -2,6 +2,7 @@ class_name MapView
 extends Control
 
 const FactionRef = preload("res://scripts/domain/faction.gd")
+const UI_FONT: Font = preload("res://assets/fonts/NotoSansSC-Regular.otf")
 
 signal city_pressed(city_id: int)
 
@@ -65,11 +66,10 @@ func _draw() -> void:
 		elif city.id in _highlighted_neighbors:
 			draw_arc(city.position, CITY_RADIUS + 8.0, 0.0, TAU, 48, NEIGHBOR_COLOR, 4.0)
 
-		var font: Font = ThemeDB.fallback_font
 		var font_size: int = 30
 		var number_text: String = str(city.soldiers)
-		var text_size: Vector2 = font.get_string_size(number_text, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
-		draw_string(font, city.position - Vector2(text_size.x * 0.5, -10.0), number_text, HORIZONTAL_ALIGNMENT_CENTER, -1.0, font_size, Color.WHITE)
+		var text_size: Vector2 = UI_FONT.get_string_size(number_text, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
+		draw_string(UI_FONT, city.position - Vector2(text_size.x * 0.5, -10.0), number_text, HORIZONTAL_ALIGNMENT_CENTER, -1.0, font_size, Color.WHITE)
 
 
 ## 根据点击坐标寻找命中的城市编号。

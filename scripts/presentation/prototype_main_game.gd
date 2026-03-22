@@ -4,7 +4,9 @@ const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner
 const PrototypeMapGeneratorRef = preload("res://scripts/application/prototype_map_generator.gd")
 const PrototypeBattleServiceRef = preload("res://scripts/application/prototype_battle_service.gd")
 const PrototypeEnemyAiServiceRef = preload("res://scripts/application/prototype_enemy_ai_service.gd")
-const MARCH_SPEED: float = 240.0
+const PrototypeCityViewRef = preload("res://scripts/presentation/prototype_city_view.gd")
+const UI_FONT: Font = preload("res://assets/fonts/NotoSansSC-Regular.otf")
+const MARCH_SPEED: float = 180.0
 const UNIT_RADIUS: float = 16.0
 const MARCH_COLLISION_DISTANCE: float = 34.0
 const AI_DIFFICULTY_ITEMS: Array = [
@@ -41,9 +43,9 @@ var _game_started: bool = false
 var _manual_paused: bool = false
 var _overlay_mode: String = "start"
 var _last_winner: int = PrototypeCityOwnerRef.NEUTRAL
-var _player_count: int = 4
-var _ai_difficulty: String = PrototypeEnemyAiServiceRef.DIFFICULTY_NORMAL
-var _ai_style: String = PrototypeEnemyAiServiceRef.STYLE_AGGRESSIVE
+var _player_count: int = 5
+var _ai_difficulty: String = PrototypeEnemyAiServiceRef.DIFFICULTY_EASY
+var _ai_style: String = PrototypeEnemyAiServiceRef.STYLE_DEFENSIVE
 var _audio_ready: bool = false
 var _music_stream: AudioStreamWAV
 var _select_sfx_stream: AudioStreamWAV
@@ -58,12 +60,18 @@ var _defeat_sfx_stream: AudioStreamWAV
 @onready var bgm_player: AudioStreamPlayer = $BgmPlayer
 @onready var sfx_player: AudioStreamPlayer = $SfxPlayer
 @onready var city_template = $CityTemplate
+@onready var ui_layer: CanvasLayer = $UILayer
+@onready var bottom_panel: PanelContainer = $UILayer/BottomPanel
 @onready var status_label: Label = $UILayer/TopPanel/Margin/InfoColumn/StatusLabel
 @onready var hint_label: Label = $UILayer/TopPanel/Margin/InfoColumn/HintLabel
 @onready var ai_config_label: Label = $UILayer/TopPanel/Margin/InfoColumn/AiConfigLabel
-@onready var cancel_selection_button: Button = $UILayer/BottomPanel/BottomMargin/BottomRow/CancelSelectionButton
-@onready var pause_button: Button = $UILayer/BottomPanel/BottomMargin/BottomRow/PauseButton
-@onready var restart_button: Button = $UILayer/BottomPanel/BottomMargin/BottomRow/RestartButton
+@onready var cancel_selection_button: Button = $UILayer/BottomPanel/BottomMargin/BottomColumn/PrimaryRow/CancelSelectionButton
+@onready var floating_upgrade_panel: PanelContainer = $UILayer/FloatingUpgradePanel
+@onready var upgrade_level_button: Button = $UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow/LevelButton
+@onready var upgrade_defense_button: Button = $UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow/DefenseButton
+@onready var upgrade_production_button: Button = $UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow/ProductionButton
+@onready var pause_button: Button = $UILayer/BottomPanel/BottomMargin/BottomColumn/PrimaryRow/PauseButton
+@onready var restart_button: Button = $UILayer/BottomPanel/BottomMargin/BottomColumn/PrimaryRow/RestartButton
 @onready var overlay_layer: CanvasLayer = $Overlay
 @onready var overlay_title_label: Label = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayTitleLabel
 @onready var overlay_body_label: Label = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayBodyLabel
@@ -102,11 +110,15 @@ var _defeat_sfx_stream: AudioStreamWAV
 ## 主要逻辑：初始化随机数与程序音频，创建一局新地图，连接常驻按钮和出兵弹窗按钮事件。
 func _ready() -> void:
 	_random.randomize()
+	ThemeDB.fallback_font = UI_FONT
 	_setup_audio()
 	_setup_ai_controls()
 	_apply_ai_profile()
 	_start_new_match()
 	cancel_selection_button.pressed.connect(_on_cancel_selection_button_pressed)
+	upgrade_level_button.pressed.connect(_on_upgrade_level_button_pressed)
+	upgrade_defense_button.pressed.connect(_on_upgrade_defense_button_pressed)
+	upgrade_production_button.pressed.connect(_on_upgrade_production_button_pressed)
 	pause_button.pressed.connect(_on_pause_button_pressed)
 	restart_button.pressed.connect(_on_restart_button_pressed)
 	overlay_action_button.pressed.connect(_on_overlay_action_button_pressed)
@@ -184,9 +196,8 @@ func _draw() -> void:
 		draw_circle(unit_position, UNIT_RADIUS, Color.WHITE, false, 3.0)
 		var font_size: int = 18
 		var text: String = str(int(unit["count"]))
-		var font := ThemeDB.fallback_font
-		var text_size: Vector2 = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
-		draw_string(font, unit_position + Vector2(-text_size.x * 0.5, 6.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
+		var text_size: Vector2 = UI_FONT.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+		draw_string(UI_FONT, unit_position + Vector2(-text_size.x * 0.5, 6.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color.WHITE)
 
 
 ## 重置运行时状态并生成一局新地图。
@@ -258,7 +269,7 @@ func _on_city_pressed(city_id: int) -> void:
 			return
 		_selected_city_id = city_id
 		status_label.text = "已选中 %s。现在点击目标城市，进入出兵数量选择。" % clicked_city.name
-		hint_label.text = "点己方城市可跨图运兵，点敌方或中立城市需要道路相邻。"
+		hint_label.text = "点己方城市可跨图运兵，点敌方或中立城市需要道路相邻；也可以直接在底部升级。"
 		_play_sfx(_select_sfx_stream)
 		_refresh_view()
 		return
@@ -340,6 +351,10 @@ func _run_enemy_turn() -> void:
 	for owner_id: int in _get_active_ai_owners():
 		var decision: Dictionary = _enemy_ai_service.choose_attack(_cities, _battle_service, owner_id)
 		if decision.is_empty():
+			var upgrade_decision: Dictionary = _enemy_ai_service.choose_upgrade(_cities, _battle_service, owner_id)
+			if upgrade_decision.is_empty():
+				continue
+			_execute_upgrade(int(upgrade_decision["city_id"]), String(upgrade_decision["upgrade_type"]), false)
 			continue
 
 		var source_id: int = int(decision["source_id"])
@@ -351,7 +366,7 @@ func _run_enemy_turn() -> void:
 ## 把当前城市状态和按钮状态同步到界面。
 ##
 ## 调用场景：产兵后、出兵后、行军到达后、选择变化后。
-## 主要逻辑：刷新所有城市显示、高亮状态，并同步底部按钮是否可点击。
+## 主要逻辑：刷新所有城市显示、高亮状态，并同步底部按钮和升级按钮是否可点击。
 func _refresh_view() -> void:
 	for city in _cities:
 		var city_view = _city_views.get(city.city_id)
@@ -362,6 +377,7 @@ func _refresh_view() -> void:
 	cancel_selection_button.disabled = _selected_city_id == -1 or _game_over or not _game_started or order_dialog_layer.visible or _manual_paused
 	pause_button.disabled = _game_over or not _game_started
 	pause_button.text = "继续" if _manual_paused else "暂停"
+	_refresh_upgrade_buttons()
 	queue_redraw()
 
 
@@ -396,10 +412,89 @@ func _clear_selection_with_message(message: String) -> void:
 	_refresh_view()
 
 
+## 刷新浮动升级条的状态、成本文案和屏幕位置。
+##
+## 调用场景：选中变化、城市升级后、开局与重开后。
+## 主要逻辑：只有选中己方城市时才在城边显示升级入口；按钮文案直接展示升级成本，
+## 并把整个面板钳制在屏幕内，避免贴边城市导致按钮飞出可视区域。
+func _refresh_upgrade_buttons() -> void:
+	if _selected_city_id == -1 or _game_over or not _game_started or order_dialog_layer.visible or _manual_paused:
+		floating_upgrade_panel.visible = false
+		upgrade_level_button.disabled = true
+		upgrade_defense_button.disabled = true
+		upgrade_production_button.disabled = true
+		upgrade_level_button.text = "升级"
+		upgrade_defense_button.text = "升防"
+		upgrade_production_button.text = "升产"
+		return
+
+	var city = _cities[_selected_city_id]
+	if city.owner != PrototypeCityOwnerRef.PLAYER:
+		floating_upgrade_panel.visible = false
+		upgrade_level_button.disabled = true
+		upgrade_defense_button.disabled = true
+		upgrade_production_button.disabled = true
+		return
+
+	var options: Dictionary = _battle_service.get_city_upgrade_options(city)
+	_apply_upgrade_button_state(upgrade_level_button, city, options[PrototypeBattleServiceRef.UPGRADE_LEVEL], "升级")
+	_apply_upgrade_button_state(upgrade_defense_button, city, options[PrototypeBattleServiceRef.UPGRADE_DEFENSE], "升防")
+	_apply_upgrade_button_state(upgrade_production_button, city, options[PrototypeBattleServiceRef.UPGRADE_PRODUCTION], "升产")
+	_position_floating_upgrade_panel(city.position)
+	floating_upgrade_panel.visible = true
+
+
+## 根据被选城市的位置摆放浮动升级条。
+##
+## 调用场景：刷新升级按钮时。
+## 主要逻辑：优先把面板放在城市右上侧；若接近屏幕边缘，则自动往回收，保证整块按钮都留在可视区内。
+func _position_floating_upgrade_panel(city_position: Vector2) -> void:
+	var panel_size: Vector2 = floating_upgrade_panel.size
+	if panel_size == Vector2.ZERO:
+		panel_size = Vector2(298.0, 60.0)
+	var viewport_size: Vector2 = get_viewport_rect().size
+	var desired_position := city_position + Vector2(66.0, -28.0)
+	var clamped_x: float = clamp(desired_position.x, 18.0, viewport_size.x - panel_size.x - 18.0)
+	var clamped_y: float = clamp(desired_position.y, 140.0, viewport_size.y - panel_size.y - 120.0)
+	floating_upgrade_panel.position = Vector2(clamped_x, clamped_y)
+
+
+## 按一条升级选项配置刷新单个按钮状态。
+##
+## 调用场景：升级按钮整体刷新时。
+## 主要逻辑：可升级时展示“名称-成本”，已满时展示“已满”；士兵不足时保留成本但禁用按钮。
+func _apply_upgrade_button_state(button: Button, city, option: Dictionary, fallback_label: String) -> void:
+	var available: bool = bool(option.get("available", false))
+	var cost: int = int(option.get("cost", 0))
+	button.text = "%s-%d" % [fallback_label, cost] if available else "%s已满" % fallback_label
+	button.disabled = not available or city.soldiers < cost
+
+
+## 执行一次城市升级，并更新提示与视图。
+##
+## 调用场景：玩家点击底部升级按钮、AI 决定优先养城时。
+## 主要逻辑：升级结算交给应用层；表现层只负责展示结果、保留当前选中和刷新 UI。
+func _execute_upgrade(city_id: int, upgrade_type: String, is_player_action: bool) -> void:
+	var city = _cities[city_id]
+	var result: Dictionary = _battle_service.upgrade_city(city, upgrade_type)
+	status_label.text = result.get("message", "")
+	if bool(result.get("success", false)):
+		if is_player_action:
+			hint_label.text = "升级已完成。你可以继续升城，或点目标城市发起行动。"
+		else:
+			hint_label.text = "%s 正在经营后方城市，准备下一轮行动。" % PrototypeCityOwnerRef.get_owner_name(city.owner)
+		_play_sfx(_capture_sfx_stream)
+	else:
+		if is_player_action:
+			hint_label.text = "升级会直接消耗城内士兵，升完后本城会暂时更空。"
+		_play_sfx(_error_sfx_stream)
+	_refresh_view()
+
+
 ## 打开玩家出兵数量对话框。
 ##
 ## 调用场景：玩家先选源城市，再点一个目标城市之后。
-## 主要逻辑：根据目标归属决定当前是在运兵还是进攻，并显示推荐兵力、快捷按钮和确认入口。
+## 主要逻辑：根据目标归属决定当前是在运兵还是进攻，并显示推荐兵力、目标防御/产能信息、快捷按钮和确认入口。
 func _open_order_dialog(source_id: int, target_id: int, is_transfer: bool) -> void:
 	var source = _cities[source_id]
 	var target = _cities[target_id]
@@ -413,7 +508,7 @@ func _open_order_dialog(source_id: int, target_id: int, is_transfer: bool) -> vo
 	else:
 		order_dialog_title_label.text = "进攻数量"
 		recommended_count = _battle_service.get_recommended_attack_count(source, target, travel_duration)
-		order_dialog_recommended_label.text = "推荐 %d 人。这个数已经考虑了路上目标城可能新增的产兵。" % recommended_count
+		order_dialog_recommended_label.text = "推荐 %d 人。已计入目标防御 %d 和路上可能新增的产兵。" % [recommended_count, target.defense]
 
 	_pending_order = {
 		"source_id": source_id,
@@ -422,7 +517,7 @@ func _open_order_dialog(source_id: int, target_id: int, is_transfer: bool) -> vo
 		"recommended_count": recommended_count
 	}
 	_pending_order_count = clamp(recommended_count, 1, max_count)
-	order_dialog_context_label.text = "%s -> %s，当前可派 %d 人。" % [source.name, target.name, max_count]
+	order_dialog_context_label.text = "%s -> %s，当前可派 %d 人。点空白可取消选城。" % [source.name, target.name, max_count]
 	order_dialog_layer.visible = true
 	status_label.text = "出兵面板已打开，战局已暂停。确认或取消后会继续。"
 	hint_label.text = "你可以慢慢调整人数，行军、产兵和电脑 AI 会暂时停止。"
@@ -442,7 +537,7 @@ func _refresh_order_dialog() -> void:
 	_pending_order_count = clamp(_pending_order_count, 1, max_count)
 	var source = _cities[int(_pending_order["source_id"])]
 	var target = _cities[int(_pending_order["target_id"])]
-	order_dialog_context_label.text = "%s -> %s，当前可派 %d 人。" % [source.name, target.name, max_count]
+	order_dialog_context_label.text = "%s -> %s，当前可派 %d 人。点空白可取消选城。" % [source.name, target.name, max_count]
 	order_dialog_count_label.text = str(_pending_order_count)
 	order_dialog_minus_10_button.disabled = _pending_order_count <= 1
 	order_dialog_minus_1_button.disabled = _pending_order_count <= 1
@@ -468,7 +563,7 @@ func _get_current_order_max_count() -> int:
 ## 根据当前数量选择刷新出兵弹窗中的到达预估信息。
 ##
 ## 调用场景：打开对话框后、点击任意数量快捷按钮后。
-## 主要逻辑：区分运兵和进攻两种模式，分别展示预计行军时间、预计到达守军、是否占领和出发后本城剩余兵力。
+## 主要逻辑：区分运兵和进攻两种模式，分别展示预计行军时间、目标防御/产能、预计到达守军、是否占领和出发后本城剩余兵力。
 func _refresh_order_forecast() -> void:
 	if _pending_order.is_empty():
 		return
@@ -482,11 +577,13 @@ func _refresh_order_forecast() -> void:
 		return
 
 	var preview: Dictionary = _battle_service.preview_attack_outcome(source, target, travel_duration, _pending_order_count)
-	order_dialog_forecast_label.text = "%s 预计 %.1f 秒后到达；路上目标城大约会再产 %d 人，到达时预计有 %d 守军。" % [
+	order_dialog_forecast_label.text = "%s 预计 %.1f 秒后到达；目标防御 %d，产能 %.1f/秒，路上大约再产 %d 人，到达时等效防守约 %d。" % [
 		target.name,
 		travel_duration,
+		int(preview["predicted_defense_bonus"]),
+		target.production_rate,
 		int(preview["predicted_growth"]),
-		int(preview["predicted_defenders"])
+		int(preview["predicted_effective_defenders"])
 	]
 
 	if bool(preview["predicted_capture"]):
@@ -841,6 +938,36 @@ func _on_cancel_selection_button_pressed() -> void:
 	_clear_selection_with_message("已取消选择。重新点一个蓝色城市即可。")
 
 
+## 处理底部等级升级按钮。
+##
+## 调用场景：玩家选中己方城市后点击 `升级` 按钮时。
+## 主要逻辑：把当前选中城市交给应用层做等级升级结算，表现层只负责转发。
+func _on_upgrade_level_button_pressed() -> void:
+	if _selected_city_id == -1:
+		return
+	_execute_upgrade(_selected_city_id, PrototypeBattleServiceRef.UPGRADE_LEVEL, true)
+
+
+## 处理底部防御升级按钮。
+##
+## 调用场景：玩家选中己方城市后点击 `升防` 按钮时。
+## 主要逻辑：把当前选中城市交给应用层做防御升级结算，表现层只负责转发。
+func _on_upgrade_defense_button_pressed() -> void:
+	if _selected_city_id == -1:
+		return
+	_execute_upgrade(_selected_city_id, PrototypeBattleServiceRef.UPGRADE_DEFENSE, true)
+
+
+## 处理底部产能升级按钮。
+##
+## 调用场景：玩家选中己方城市后点击 `升产` 按钮时。
+## 主要逻辑：把当前选中城市交给应用层做产能升级结算，表现层只负责转发。
+func _on_upgrade_production_button_pressed() -> void:
+	if _selected_city_id == -1:
+		return
+	_execute_upgrade(_selected_city_id, PrototypeBattleServiceRef.UPGRADE_PRODUCTION, true)
+
+
 ## 处理底部重新开始按钮。
 ##
 ## 调用场景：玩家在对局中途或结束后主动要求重新开局时。
@@ -860,7 +987,7 @@ func _show_play_state() -> void:
 	_overlay_mode = "play"
 	overlay_layer.visible = false
 	status_label.text = "先点蓝色城市，再点目标城市，然后在弹窗里确认出兵人数。"
-	hint_label.text = "下方有“取消选择”“暂停”和“重新开始”按钮。"
+	hint_label.text = "点空白可取消选城；选中己方城市后还能直接在底部升防、升产或升级。"
 	_play_sfx(_select_sfx_stream)
 	_play_bgm_if_needed()
 	_refresh_view()
@@ -904,6 +1031,54 @@ func _apply_ai_profile() -> void:
 ## 主要逻辑：只要是手动暂停、出兵对话框打开或其他遮罩挡住战场，就停止行军、产兵和电脑 AI。
 func _is_gameplay_paused() -> bool:
 	return _manual_paused or order_dialog_layer.visible or overlay_layer.visible
+
+
+## 处理玩家在主场景上的点击，用于快速取消当前选城。
+##
+## 调用场景：鼠标左键或单点触控按下时。
+## 主要逻辑：不再依赖 `_unhandled_input()` 的分发时机，而是主动判断点击是否命中城市或 UI；
+## 只有真正点到战场空白区域时，才取消当前选城。
+func _input(event: InputEvent) -> void:
+	if _selected_city_id == -1 or _game_over or not _game_started or order_dialog_layer.visible or _manual_paused or overlay_layer.visible:
+		return
+
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if _should_ignore_selection_cancel(event.position):
+			return
+		_clear_selection_with_message("已取消选择。重新点一个蓝色城市即可。")
+		get_viewport().set_input_as_handled()
+	elif event is InputEventScreenTouch and event.pressed:
+		if _should_ignore_selection_cancel(event.position):
+			return
+		_clear_selection_with_message("已取消选择。重新点一个蓝色城市即可。")
+		get_viewport().set_input_as_handled()
+
+
+## 判断当前屏幕点击是否命中了任意城市。
+##
+## 调用场景：空白点击取消选择前的命中判定。
+## 主要逻辑：按城市中心和表现节点的矩形点击范围做包围盒测试；命中任意城市则返回该城市编号，否则返回 -1。
+func _pick_city_at_position(pointer_position: Vector2) -> int:
+	var half_size: Vector2 = PrototypeCityViewRef.CITY_SIZE * 0.5
+	for city in _cities:
+		var city_rect := Rect2(city.position - half_size, PrototypeCityViewRef.CITY_SIZE)
+		if city_rect.has_point(pointer_position):
+			return city.city_id
+	return -1
+
+
+## 判断一次点击是否应当跳过“空白取消选城”逻辑。
+##
+## 调用场景：主场景输入处理时。
+## 主要逻辑：命中城市、浮动升级条或底部 HUD 时都不取消；只有落在纯战场空白处才视为取消选择。
+func _should_ignore_selection_cancel(pointer_position: Vector2) -> bool:
+	if _pick_city_at_position(pointer_position) != -1:
+		return true
+	if floating_upgrade_panel.visible and floating_upgrade_panel.get_global_rect().has_point(pointer_position):
+		return true
+	if bottom_panel.get_global_rect().has_point(pointer_position):
+		return true
+	return false
 
 
 ## 显示暂停面板并冻结战局。
@@ -965,9 +1140,9 @@ func _refresh_overlay_content(winner: int = PrototypeCityOwnerRef.NEUTRAL) -> vo
 			overlay_settings_grid.visible = true
 			overlay_title_label.text = "开始游戏"
 			overlay_body_label.text = "这是一个竖屏城堡攻防原型。蓝色是你，其他颜色分别代表不同电脑势力，灰色是中立城市。"
-			overlay_rule_label.text = "第一步：点击你的蓝色城市。第二步：点目标城市。打别的势力要相邻，运兵可跨图。"
-			overlay_rule_label_2.text = "第三步：在弹出的出兵面板里明确选择要派多少人。出兵面板打开时，战局会自动暂停。"
-			overlay_rule_label_3.text = "开始前可以先选总方数、难度和风格。多个电脑势力会互相攻伐。"
+			overlay_rule_label.text = "第一步：点击你的蓝色城市。第二步：点目标城市。打别的势力要相邻，运兵可跨图；点空白可取消选城。"
+			overlay_rule_label_2.text = "第三步：选中己方城市后，可直接在底部用驻军升级等级、防御或产能。"
+			overlay_rule_label_3.text = "城市有防御、产能和等级：防御越高越难攻下，产能越高产兵越快，等级越高容量越大。"
 			overlay_action_button.text = "开始游戏"
 
 

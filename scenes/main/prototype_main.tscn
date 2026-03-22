@@ -1,55 +1,71 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/presentation/prototype_main_game.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/presentation/prototype_city_view.gd" id="2_city"]
+[ext_resource type="FontFile" path="res://assets/fonts/NotoSansSC-Regular.otf" id="3_font"]
 
 [sub_resource type="LabelSettings" id="LabelSettings_title"]
+font = ExtResource("3_font")
 font_size = 24
 font_color = Color(0.980392, 0.988235, 1, 1)
 outline_size = 2
 outline_color = Color(0.0196078, 0.0313726, 0.054902, 0.9)
 
 [sub_resource type="LabelSettings" id="LabelSettings_status"]
+font = ExtResource("3_font")
 font_size = 20
 font_color = Color(0.956863, 0.972549, 1, 1)
 outline_size = 1
 outline_color = Color(0.027451, 0.0431373, 0.0705882, 0.7)
 
 [sub_resource type="LabelSettings" id="LabelSettings_hint"]
+font = ExtResource("3_font")
 font_size = 17
 font_color = Color(0.768627, 0.843137, 0.921569, 1)
 outline_size = 0
 outline_color = Color(0, 0, 0, 0)
 
 [sub_resource type="LabelSettings" id="LabelSettings_overlay_title"]
+font = ExtResource("3_font")
 font_size = 46
 font_color = Color(0.996078, 0.952941, 0.792157, 1)
 outline_size = 2
 outline_color = Color(0.0392157, 0.054902, 0.0862745, 0.92)
 
 [sub_resource type="LabelSettings" id="LabelSettings_overlay_body"]
+font = ExtResource("3_font")
 font_size = 26
 font_color = Color(0.964706, 0.976471, 1, 1)
 outline_size = 1
 outline_color = Color(0.0235294, 0.0352941, 0.0588235, 0.72)
 
 [sub_resource type="LabelSettings" id="LabelSettings_overlay_rule"]
+font = ExtResource("3_font")
 font_size = 23
 font_color = Color(0.796078, 0.862745, 0.933333, 1)
 outline_size = 0
 outline_color = Color(0, 0, 0, 0)
 
 [sub_resource type="LabelSettings" id="LabelSettings_city_name"]
-font_size = 22
-font_color = Color(0.972549, 0.980392, 1, 1)
+font = ExtResource("3_font")
+font_size = 20
+font_color = Color(0.964706, 0.972549, 1, 1)
 outline_size = 1
 outline_color = Color(0.0235294, 0.0313726, 0.0470588, 0.72)
 
 [sub_resource type="LabelSettings" id="LabelSettings_city_soldier"]
-font_size = 34
-font_color = Color(1, 1, 1, 1)
+font = ExtResource("3_font")
+font_size = 28
+font_color = Color(1, 0.980392, 0.917647, 1)
 outline_size = 2
 outline_color = Color(0.027451, 0.0392157, 0.0627451, 0.82)
+
+[sub_resource type="LabelSettings" id="LabelSettings_city_attr"]
+font = ExtResource("3_font")
+font_size = 17
+font_color = Color(0.772549, 0.85098, 0.941176, 1)
+outline_size = 0
+outline_color = Color(0, 0, 0, 0)
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_hud_panel"]
 bg_color = Color(0.0705882, 0.0941176, 0.141176, 0.92)
@@ -156,24 +172,83 @@ theme_override_constants/margin_top = 12
 theme_override_constants/margin_right = 18
 theme_override_constants/margin_bottom = 12
 
-[node name="BottomRow" type="HBoxContainer" parent="UILayer/BottomPanel/BottomMargin"]
+[node name="BottomColumn" type="VBoxContainer" parent="UILayer/BottomPanel/BottomMargin"]
+theme_override_constants/separation = 10
+
+[node name="PrimaryRow" type="HBoxContainer" parent="UILayer/BottomPanel/BottomMargin/BottomColumn"]
 alignment = 1
 theme_override_constants/separation = 18
 
-[node name="CancelSelectionButton" type="Button" parent="UILayer/BottomPanel/BottomMargin/BottomRow"]
+[node name="CancelSelectionButton" type="Button" parent="UILayer/BottomPanel/BottomMargin/BottomColumn/PrimaryRow"]
 text = "取消选择"
-theme_override_font_sizes/font_size = 24
-custom_minimum_size = Vector2(180, 54)
+theme_override_font_sizes/font_size = 22
+custom_minimum_size = Vector2(160, 48)
 
-[node name="PauseButton" type="Button" parent="UILayer/BottomPanel/BottomMargin/BottomRow"]
+[node name="PauseButton" type="Button" parent="UILayer/BottomPanel/BottomMargin/BottomColumn/PrimaryRow"]
 text = "暂停"
-theme_override_font_sizes/font_size = 24
-custom_minimum_size = Vector2(130, 54)
+theme_override_font_sizes/font_size = 22
+custom_minimum_size = Vector2(118, 48)
 
-[node name="RestartButton" type="Button" parent="UILayer/BottomPanel/BottomMargin/BottomRow"]
+[node name="RestartButton" type="Button" parent="UILayer/BottomPanel/BottomMargin/BottomColumn/PrimaryRow"]
 text = "重新开始"
-theme_override_font_sizes/font_size = 24
-custom_minimum_size = Vector2(180, 54)
+theme_override_font_sizes/font_size = 22
+custom_minimum_size = Vector2(160, 48)
+
+[node name="UpgradeRow" type="HBoxContainer" parent="UILayer/BottomPanel/BottomMargin/BottomColumn"]
+visible = false
+alignment = 1
+theme_override_constants/separation = 12
+
+[node name="UpgradeLevelButton" type="Button" parent="UILayer/BottomPanel/BottomMargin/BottomColumn/UpgradeRow"]
+text = "升级"
+visible = false
+theme_override_font_sizes/font_size = 20
+custom_minimum_size = Vector2(138, 44)
+
+[node name="UpgradeDefenseButton" type="Button" parent="UILayer/BottomPanel/BottomMargin/BottomColumn/UpgradeRow"]
+text = "升防"
+visible = false
+theme_override_font_sizes/font_size = 20
+custom_minimum_size = Vector2(138, 44)
+
+[node name="UpgradeProductionButton" type="Button" parent="UILayer/BottomPanel/BottomMargin/BottomColumn/UpgradeRow"]
+text = "升产"
+visible = false
+theme_override_font_sizes/font_size = 20
+custom_minimum_size = Vector2(138, 44)
+
+[node name="FloatingUpgradePanel" type="PanelContainer" parent="UILayer"]
+visible = false
+offset_left = 360.0
+offset_top = 920.0
+offset_right = 658.0
+offset_bottom = 980.0
+theme_override_styles/panel = SubResource("StyleBox_hud_panel")
+
+[node name="FloatingUpgradeMargin" type="MarginContainer" parent="UILayer/FloatingUpgradePanel"]
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
+
+[node name="FloatingUpgradeRow" type="HBoxContainer" parent="UILayer/FloatingUpgradePanel/FloatingUpgradeMargin"]
+alignment = 1
+theme_override_constants/separation = 8
+
+[node name="LevelButton" type="Button" parent="UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow"]
+text = "升级"
+theme_override_font_sizes/font_size = 18
+custom_minimum_size = Vector2(84, 34)
+
+[node name="DefenseButton" type="Button" parent="UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow"]
+text = "升防"
+theme_override_font_sizes/font_size = 18
+custom_minimum_size = Vector2(84, 34)
+
+[node name="ProductionButton" type="Button" parent="UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow"]
+text = "升产"
+theme_override_font_sizes/font_size = 18
+custom_minimum_size = Vector2(84, 34)
 
 [node name="Overlay" type="CanvasLayer" parent="."]
 
@@ -392,16 +467,24 @@ script = ExtResource("2_city")
 
 [node name="NameLabel" type="Label" parent="CityTemplate"]
 offset_left = -60.0
-offset_top = 38.0
+offset_top = 36.0
 offset_right = 60.0
-offset_bottom = 66.0
+offset_bottom = 60.0
 horizontal_alignment = 1
 label_settings = SubResource("LabelSettings_city_name")
 
 [node name="SoldierLabel" type="Label" parent="CityTemplate"]
 offset_left = -60.0
-offset_top = 62.0
+offset_top = 58.0
 offset_right = 60.0
-offset_bottom = 100.0
+offset_bottom = 92.0
 horizontal_alignment = 1
 label_settings = SubResource("LabelSettings_city_soldier")
+
+[node name="AttrLabel" type="Label" parent="CityTemplate"]
+offset_left = -72.0
+offset_top = 88.0
+offset_right = 72.0
+offset_bottom = 110.0
+horizontal_alignment = 1
+label_settings = SubResource("LabelSettings_city_attr")
