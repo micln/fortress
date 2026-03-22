@@ -15,19 +15,23 @@ concurrency:
   group: github-pages
   cancel-in-progress: true
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Godot 4.6.1
-        uses: vitorgus/setup-godot@v1
+        uses: chickensoft-games/setup-godot@v2.3.0
         with:
-          godot-version: 4.6.1
-          download-templates: true
+          version: 4.6.1
+          use-dotnet: false
+          include-templates: true
 
       - name: Import project assets
         run: godot --headless --path . --import
