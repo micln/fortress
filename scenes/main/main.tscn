@@ -1,0 +1,61 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/presentation/main_game.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/presentation/city_view.gd" id="2_city"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_title"]
+font_size = 28
+outline_size = 6
+
+[node name="MainGame" type="Node2D"]
+script = ExtResource("1_main")
+
+[node name="Cities" type="Node2D" parent="."]
+
+[node name="UILayer" type="CanvasLayer" parent="."]
+
+[node name="TopPanel" type="PanelContainer" parent="UILayer"]
+offset_left = 24.0
+offset_top = 24.0
+offset_right = 696.0
+offset_bottom = 168.0
+
+[node name="Margin" type="MarginContainer" parent="UILayer/TopPanel"]
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 14
+
+[node name="InfoColumn" type="VBoxContainer" parent="UILayer/TopPanel/Margin"]
+
+[node name="TitleLabel" type="Label" parent="UILayer/TopPanel/Margin/InfoColumn"]
+text = "Fortress War"
+label_settings = SubResource("LabelSettings_title")
+
+[node name="StatusLabel" type="Label" parent="UILayer/TopPanel/Margin/InfoColumn"]
+text = "选择己方城市，然后点击相邻目标城市发起进攻。"
+autowrap_mode = 3
+
+[node name="HintLabel" type="Label" parent="UILayer/TopPanel/Margin/InfoColumn"]
+text = "蓝方是你，红方是敌人，灰色中立城市不产兵。"
+autowrap_mode = 3
+
+[node name="CityTemplate" type="Area2D" parent="."]
+visible = false
+script = ExtResource("2_city")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CityTemplate"]
+
+[node name="NameLabel" type="Label" parent="CityTemplate"]
+offset_left = -60.0
+offset_top = -72.0
+offset_right = 60.0
+offset_bottom = -36.0
+horizontal_alignment = 1
+
+[node name="SoldierLabel" type="Label" parent="CityTemplate"]
+offset_left = -60.0
+offset_top = -18.0
+offset_right = 60.0
+offset_bottom = 18.0
+horizontal_alignment = 1

@@ -1,0 +1,21 @@
+# Godot editor cache and imported metadata
+.godot/
+
+# Godot export presets and local export output
+export_presets.cfg
+.export/
+
+# Mono / C# build artifacts
+.mono/
+bin/
+obj/
+
+# macOS metadata
+.DS_Store
+
+# Common editor swap and temp files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
