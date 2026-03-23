@@ -17,6 +17,7 @@
 
 - 通过 `tests/test_runner.gd` 运行最小自定义测试集
 - 对较大改动执行 Godot 项目启动验证，确保无语法错误
+- Web 构建后执行 `scripts/tools/web_smoke_check.sh`，自动校验导出产物完整性、`index.js` 语法和 `Engine` 启动片段
 - 对大地图交互执行手工测试，覆盖拖拽浏览、拖拽与点按区分、边界钳制、HUD 固定和拖拽后的命中判定
 - 在沙箱环境下运行 headless 测试时，建议设置 `HOME=/tmp XDG_DATA_HOME=/tmp`，避免 Godot 写入 `user://logs` 时崩溃
 

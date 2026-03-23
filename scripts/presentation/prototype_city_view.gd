@@ -6,6 +6,8 @@ signal city_pressed(city_id: int)
 const CITY_SIZE: Vector2 = Vector2(108.0, 78.0)
 const TOWER_SIZE: Vector2 = Vector2(20.0, 34.0)
 const TAP_MAX_DRAG_DISTANCE: float = 18.0
+const TOUCH_MOUSE_DEDUP_WINDOW_MS: int = 450
+const INPUT_DEBUG_LOG_ENABLED: bool = true
 const TILE_ROOF_COLOR: Color = Color(0.34, 0.16, 0.12)
 const WALL_LINE_COLOR: Color = Color(1.0, 0.96, 0.86, 0.92)
 const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
@@ -23,6 +25,7 @@ var _mouse_press_position: Vector2 = Vector2.ZERO
 var _touch_pressing: bool = false
 var _touch_press_position: Vector2 = Vector2.ZERO
 var _touch_index: int = -1
+var _last_touch_tap_time_ms: int = -1
 
 @onready var collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var name_label: Label = $NameLabel
@@ -154,9 +157,27 @@ func _draw_level_banner(gatehouse_rect: Rect2, banner_color: Color) -> void:
 ##
 ## 调用场景：玩家点击或触摸城市时由 Godot 输入系统回调。
 ## 主要逻辑：按下时先记录初始位置；抬起时若位移仍在点击阈值内，才视为真正点击，
-## 这样在城市上起手拖拽地图时，不会误触发选城。
+## 这样在城市上起手拖拽地图时，不会误触发选城；在触屏设备上直接忽略兼容鼠标事件，避免移动端一次轻触触发两次选城。
 func _input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if DisplayServer.is_touchscreen_available():
+			_log_city_input_debug("ignore_mouse_on_touchscreen", {
+				"city_id": city_id,
+				"position": event.position,
+				"pressed": event.pressed
+			})
+			return
+		_log_city_input_debug("mouse_button", {
+			"city_id": city_id,
+			"pressed": event.pressed,
+			"position": event.position
+		})
+		if _should_ignore_compat_mouse_tap():
+			_log_city_input_debug("ignore_compat_mouse_tap", {
+				"city_id": city_id,
+				"position": event.position
+			})
+			return
 		if event.pressed:
 			_mouse_pressing = true
 			_mouse_press_position = event.position
@@ -170,6 +191,12 @@ func _input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
 		return
 
 	if event is InputEventScreenTouch:
+		_log_city_input_debug("screen_touch", {
+			"city_id": city_id,
+			"pressed": event.pressed,
+			"index": event.index,
+			"position": event.position
+		})
 		if event.pressed:
 			_touch_pressing = true
 			_touch_press_position = event.position
@@ -180,5 +207,26 @@ func _input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
 		_touch_pressing = false
 		_touch_index = -1
 		if event.position.distance_to(_touch_press_position) <= TAP_MAX_DRAG_DISTANCE:
+			_last_touch_tap_time_ms = Time.get_ticks_msec()
 			_viewport.set_input_as_handled()
 			city_pressed.emit(city_id)
+
+
+## 判断当前鼠标点击是否只是触摸事件之后浏览器补发的兼容事件。
+##
+## 调用场景：城市节点收到 `InputEventMouseButton` 时。
+## 主要逻辑：桌面环境下保留时间窗口去重，避免混合输入设备把一次点击重复派发为触摸和鼠标。
+func _should_ignore_compat_mouse_tap() -> bool:
+	if _last_touch_tap_time_ms < 0:
+		return false
+	return Time.get_ticks_msec() - _last_touch_tap_time_ms <= TOUCH_MOUSE_DEDUP_WINDOW_MS
+
+
+## 输出城市节点自身收到的输入日志，帮助排查移动端一次轻触是否触发了 touch 与 mouse 两套事件。
+##
+## 调用场景：城市节点收到触摸、鼠标和去重判定事件时。
+## 主要逻辑：统一格式化日志，输出城市编号和局部点击坐标，便于与主场景的全局坐标日志对照。
+func _log_city_input_debug(tag: String, payload: Dictionary = {}) -> void:
+	if not INPUT_DEBUG_LOG_ENABLED:
+		return
+	print("[city-input-debug] ", tag, " | ", JSON.stringify(payload))

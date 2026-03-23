@@ -72,6 +72,7 @@ HOME=/tmp XDG_DATA_HOME=/tmp godot --headless --path . -s res://tests/test_runne
 - 发布工作流定义在 `.github/workflows/deploy-web.yml`，使用 Godot `4.6.1` 和 `export_presets.cfg` 中的 `Web` preset。
 - 首次启用时，需要在 GitHub 仓库设置中把 Pages 的发布来源切换为 GitHub Actions。
 - 工作流会在导出后校验 `index.html`、`index.js`、`index.wasm`、`index.pck` 和 `404.html` 是否齐全，避免部署空包或残缺包。
+- 本地手机联调不要再使用 `python3 -m http.server` 的纯 HTTP 方式。Godot Web 在当前导出配置下要求 Secure Context，本地请使用 `scripts/tools/serve_web_https.sh` 启动 HTTPS 服务。
 
 ## Web 中文显示说明
 

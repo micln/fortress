@@ -7,6 +7,15 @@
 3. 从主场景启动运行。
 4. 在竖屏窗口尺寸下检查地图、城市、UI 和输入。
 
+## 本地 Web HTTPS 联调
+
+1. 先执行 `scripts/tools/web_smoke_check.sh`，确认 Web 导出产物完整且脚本语法正常。
+2. 再执行 `scripts/tools/serve_web_https.sh`，脚本会自动生成 30 天有效的本地自签名证书，并启动 HTTPS 静态服务。
+3. 桌面浏览器可直接访问 `https://localhost:18443/index.html`。
+4. 手机局域网联调时，使用电脑局域网 IP 打开 `https://<电脑IP>:18443/index.html`。
+5. 首次访问需要在浏览器或系统中信任该自签名证书，否则仍会被浏览器判定为不安全上下文。
+6. 如果要排查移动端点击问题，可直接打开浏览器 Console，查看以 `[input-debug]` 和 `[city-input-debug]` 开头的日志：前者会输出所有城市坐标与每次点击的全局坐标，后者会输出城市节点实际收到的 `touch/mouse` 事件。
+
 ## 调试建议
 
 - 先验证主场景是否可启动，再检查输入和战斗逻辑。
@@ -52,3 +61,4 @@
 - 如果 workflow 失败在“Verify exported web files”，优先检查 `Web` preset、导出模板版本和 `build/web/` 下的导出文件名。
 - 如果 Web 页面可打开但中文显示异常，先检查 `assets/fonts/NotoSansSC-Regular.otf` 是否仍被项目引用并导出。
 - 如果导出失败，优先检查 `export_presets.cfg` 中的 `Web` preset 是否仍指向 `build/web/index.html`。
+- 如果本地手机联调报 `Secure Context - Check web server configuration (use HTTPS)`，不要继续用纯 HTTP 静态服务，直接切到 `scripts/tools/serve_web_https.sh`。

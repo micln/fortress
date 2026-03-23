@@ -11,6 +11,8 @@ const MARCH_SPEED: float = 180.0
 const UNIT_RADIUS: float = 16.0
 const MARCH_COLLISION_DISTANCE: float = 34.0
 const DRAG_START_DISTANCE: float = 18.0
+const NARROW_OVERLAY_BREAKPOINT: float = 520.0
+const INPUT_DEBUG_LOG_ENABLED: bool = true
 const AI_DIFFICULTY_ITEMS: Array = [
 	{"id": PrototypeEnemyAiServiceRef.DIFFICULTY_EASY, "name": "简单"},
 	{"id": PrototypeEnemyAiServiceRef.DIFFICULTY_NORMAL, "name": "普通"},
@@ -65,13 +67,19 @@ var _drag_pointer_kind: String = ""
 var _drag_pointer_index: int = -1
 var _drag_press_position: Vector2 = Vector2.ZERO
 var _drag_last_position: Vector2 = Vector2.ZERO
+var _skip_selection_cancel_guard_count: int = 0
 
 @onready var cities_root: Node2D = $Cities
 @onready var bgm_player: AudioStreamPlayer = $BgmPlayer
 @onready var sfx_player: AudioStreamPlayer = $SfxPlayer
 @onready var city_template = $CityTemplate
 @onready var ui_layer: CanvasLayer = $UILayer
+@onready var top_panel: PanelContainer = $UILayer/TopPanel
+@onready var top_margin: MarginContainer = $UILayer/TopPanel/Margin
+@onready var top_info_column: VBoxContainer = $UILayer/TopPanel/Margin/InfoColumn
 @onready var bottom_panel: PanelContainer = $UILayer/BottomPanel
+@onready var bottom_margin: MarginContainer = $UILayer/BottomPanel/BottomMargin
+@onready var bottom_primary_row: HBoxContainer = $UILayer/BottomPanel/BottomMargin/BottomColumn/PrimaryRow
 @onready var status_label: Label = $UILayer/TopPanel/Margin/InfoColumn/StatusLabel
 @onready var hint_label: Label = $UILayer/TopPanel/Margin/InfoColumn/HintLabel
 @onready var ai_config_label: Label = $UILayer/TopPanel/Margin/InfoColumn/AiConfigLabel
@@ -83,33 +91,43 @@ var _drag_last_position: Vector2 = Vector2.ZERO
 @onready var pause_button: Button = $UILayer/BottomPanel/BottomMargin/BottomColumn/PrimaryRow/PauseButton
 @onready var restart_button: Button = $UILayer/BottomPanel/BottomMargin/BottomColumn/PrimaryRow/RestartButton
 @onready var overlay_layer: CanvasLayer = $Overlay
-@onready var overlay_title_label: Label = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayTitleLabel
-@onready var overlay_body_label: Label = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayBodyLabel
-@onready var overlay_rule_label: Label = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/RuleLabel
-@onready var overlay_rule_label_2: Label = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/RuleLabel2
-@onready var overlay_rule_label_3: Label = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/RuleLabel3
-@onready var overlay_settings_grid: GridContainer = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/SettingsGrid
-@onready var overlay_ai_count_option: OptionButton = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/SettingsGrid/AiCountOption
-@onready var overlay_difficulty_option: OptionButton = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/SettingsGrid/DifficultyOption
-@onready var overlay_style_option: OptionButton = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/SettingsGrid/StyleOption
+@onready var overlay_panel: PanelContainer = $Overlay/OverlayPanel
+@onready var overlay_margin: MarginContainer = $Overlay/OverlayPanel/OverlayMargin
+@onready var overlay_scroll: ScrollContainer = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll
+@onready var overlay_title_label: Label = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/OverlayTitleLabel
+@onready var overlay_body_label: Label = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/OverlayBodyLabel
+@onready var overlay_rule_label: Label = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/RuleLabel
+@onready var overlay_rule_label_2: Label = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/RuleLabel2
+@onready var overlay_rule_label_3: Label = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/RuleLabel3
+@onready var overlay_settings_grid: GridContainer = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/SettingsGrid
+@onready var overlay_ai_count_option: OptionButton = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/SettingsGrid/AiCountOption
+@onready var overlay_difficulty_option: OptionButton = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/SettingsGrid/DifficultyOption
+@onready var overlay_style_option: OptionButton = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/SettingsGrid/StyleOption
 @onready var overlay_action_button: Button = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayActionButton
 @onready var order_dialog_layer: CanvasLayer = $OrderDialog
-@onready var order_dialog_title_label: Label = $OrderDialog/Panel/Margin/Column/TitleLabel
-@onready var order_dialog_context_label: Label = $OrderDialog/Panel/Margin/Column/ContextLabel
-@onready var order_dialog_recommended_label: Label = $OrderDialog/Panel/Margin/Column/RecommendedLabel
-@onready var order_dialog_forecast_label: Label = $OrderDialog/Panel/Margin/Column/ForecastLabel
-@onready var order_dialog_outcome_label: Label = $OrderDialog/Panel/Margin/Column/OutcomeLabel
-@onready var order_dialog_count_label: Label = $OrderDialog/Panel/Margin/Column/CountLabel
-@onready var order_dialog_minus_10_button: Button = $OrderDialog/Panel/Margin/Column/AdjustRow/Minus10Button
-@onready var order_dialog_minus_1_button: Button = $OrderDialog/Panel/Margin/Column/AdjustRow/Minus1Button
-@onready var order_dialog_plus_1_button: Button = $OrderDialog/Panel/Margin/Column/AdjustRow/Plus1Button
-@onready var order_dialog_plus_10_button: Button = $OrderDialog/Panel/Margin/Column/AdjustRow/Plus10Button
-@onready var order_dialog_plus_20_button: Button = $OrderDialog/Panel/Margin/Column/QuickGrid/Plus20Button
-@onready var order_dialog_plus_50_button: Button = $OrderDialog/Panel/Margin/Column/QuickGrid/Plus50Button
-@onready var order_dialog_half_button: Button = $OrderDialog/Panel/Margin/Column/QuickGrid/HalfButton
-@onready var order_dialog_full_button: Button = $OrderDialog/Panel/Margin/Column/QuickGrid/FullButton
-@onready var order_dialog_recommend_button: Button = $OrderDialog/Panel/Margin/Column/QuickGrid/RecommendButton
-@onready var order_dialog_keep_one_button: Button = $OrderDialog/Panel/Margin/Column/QuickGrid/MaxKeepOneButton
+@onready var order_dialog_panel: PanelContainer = $OrderDialog/Panel
+@onready var order_dialog_margin: MarginContainer = $OrderDialog/Panel/Margin
+@onready var order_dialog_column: VBoxContainer = $OrderDialog/Panel/Margin/Column
+@onready var order_dialog_scroll: ScrollContainer = $OrderDialog/Panel/Margin/Column/OrderScroll
+@onready var order_dialog_title_label: Label = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/TitleLabel
+@onready var order_dialog_context_label: Label = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/ContextLabel
+@onready var order_dialog_recommended_label: Label = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/RecommendedLabel
+@onready var order_dialog_forecast_label: Label = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/ForecastLabel
+@onready var order_dialog_outcome_label: Label = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/OutcomeLabel
+@onready var order_dialog_count_label: Label = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/CountLabel
+@onready var order_dialog_adjust_row: HBoxContainer = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow
+@onready var order_dialog_minus_10_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow/Minus10Button
+@onready var order_dialog_minus_1_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow/Minus1Button
+@onready var order_dialog_plus_1_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow/Plus1Button
+@onready var order_dialog_plus_10_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow/Plus10Button
+@onready var order_dialog_quick_grid: GridContainer = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid
+@onready var order_dialog_plus_20_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid/Plus20Button
+@onready var order_dialog_plus_50_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid/Plus50Button
+@onready var order_dialog_half_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid/HalfButton
+@onready var order_dialog_full_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid/FullButton
+@onready var order_dialog_recommend_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid/RecommendButton
+@onready var order_dialog_keep_one_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid/MaxKeepOneButton
+@onready var order_dialog_action_row: HBoxContainer = $OrderDialog/Panel/Margin/Column/ActionRow
 @onready var order_dialog_cancel_button: Button = $OrderDialog/Panel/Margin/Column/ActionRow/CancelButton
 @onready var order_dialog_confirm_button: Button = $OrderDialog/Panel/Margin/Column/ActionRow/ConfirmButton
 
@@ -122,6 +140,10 @@ func _ready() -> void:
 	_random.randomize()
 	ThemeDB.fallback_font = UI_FONT
 	_apply_dynamic_resolution()
+	_apply_responsive_hud_layout()
+	_apply_responsive_bottom_panel_layout()
+	_apply_responsive_overlay_layout()
+	_apply_responsive_order_dialog_layout()
 	get_window().size_changed.connect(_on_window_size_changed)
 	_setup_audio()
 	_setup_ai_controls()
@@ -158,19 +180,44 @@ func _notification(what: int) -> void:
 	if what != NOTIFICATION_WM_SIZE_CHANGED or not is_node_ready():
 		return
 	_apply_dynamic_resolution()
+	_apply_responsive_hud_layout()
+	_apply_responsive_bottom_panel_layout()
+	_apply_responsive_overlay_layout()
+	_apply_responsive_order_dialog_layout()
 	_set_map_offset(_map_offset)
 
 
-## 按当前窗口实际尺寸设置内容分辨率，避免依赖固定设计分辨率。
+## 按当前窗口逻辑尺寸设置内容分辨率，避免高 DPI 设备把 UI 误缩小。
 ##
 ## 调用场景：主场景启动时、窗口尺寸变化时。
-## 主要逻辑：读取当前窗口像素尺寸，若尺寸有效则写入 `content_scale_size`，让逻辑分辨率跟随当前窗口。
+## 主要逻辑：先读取窗口像素尺寸；Web 平台会按屏幕缩放因子换算为逻辑尺寸，再写入 `content_scale_size`。
 func _apply_dynamic_resolution() -> void:
 	var window: Window = get_window()
 	var target_size: Vector2i = window.size
 	if target_size.x <= 0 or target_size.y <= 0:
 		return
-	window.content_scale_size = target_size
+	window.content_scale_size = _to_logical_window_size(target_size)
+
+
+## 将窗口像素尺寸转换为逻辑尺寸，优先修复移动端 Web 高 DPI 下字体过小问题。
+##
+## 调用场景：动态分辨率写入前由 `_apply_dynamic_resolution()` 调用。
+## 主要逻辑：仅在“Web + 触屏设备”时读取屏幕缩放因子并反算逻辑分辨率，桌面端保持原始像素尺寸避免黑边。
+func _to_logical_window_size(pixel_size: Vector2i) -> Vector2i:
+	if not OS.has_feature("web"):
+		return pixel_size
+	if not DisplayServer.is_touchscreen_available():
+		return pixel_size
+
+	var window: Window = get_window()
+	var screen_index: int = window.current_screen
+	var screen_scale: float = DisplayServer.screen_get_scale(screen_index)
+	if screen_scale <= 0.0:
+		screen_scale = 1.0
+
+	var logical_width: int = maxi(int(round(float(pixel_size.x) / screen_scale)), 1)
+	var logical_height: int = maxi(int(round(float(pixel_size.y) / screen_scale)), 1)
+	return Vector2i(logical_width, logical_height)
 
 
 ## 响应窗口尺寸变化，实时刷新动态分辨率配置。
@@ -179,6 +226,246 @@ func _apply_dynamic_resolution() -> void:
 ## 主要逻辑：把最新窗口尺寸同步到内容分辨率，确保画面持续自适应。
 func _on_window_size_changed() -> void:
 	_apply_dynamic_resolution()
+	_apply_responsive_hud_layout()
+	_apply_responsive_bottom_panel_layout()
+	_apply_responsive_overlay_layout()
+	_apply_responsive_order_dialog_layout()
+
+
+## 按当前视口宽度调整顶部和底部 HUD，减少移动端对主战场可视空间的占用。
+##
+## 调用场景：主场景初始化、窗口尺寸变化、移动端旋转后。
+## 主要逻辑：窄屏下把顶部栏贴近屏幕边缘、压缩内边距与字号，并隐藏次要提示文案；宽屏时恢复完整 HUD。
+func _apply_responsive_hud_layout() -> void:
+	var viewport_size: Vector2 = get_viewport_rect().size
+	var is_narrow_layout: bool = viewport_size.x <= NARROW_OVERLAY_BREAKPOINT
+
+	if is_narrow_layout:
+		top_panel.offset_left = 4.0
+		top_panel.offset_top = 4.0
+		top_panel.offset_right = -4.0
+		top_panel.offset_bottom = 58.0
+		top_margin.add_theme_constant_override("margin_left", 8)
+		top_margin.add_theme_constant_override("margin_top", 4)
+		top_margin.add_theme_constant_override("margin_right", 8)
+		top_margin.add_theme_constant_override("margin_bottom", 4)
+		top_info_column.add_theme_constant_override("separation", 1)
+		status_label.add_theme_font_size_override("font_size", 15)
+		hint_label.visible = false
+		ai_config_label.add_theme_font_size_override("font_size", 13)
+		return
+
+	top_panel.offset_left = 24.0
+	top_panel.offset_top = 16.0
+	top_panel.offset_right = -24.0
+	top_panel.offset_bottom = 118.0
+	top_margin.add_theme_constant_override("margin_left", 18)
+	top_margin.add_theme_constant_override("margin_top", 10)
+	top_margin.add_theme_constant_override("margin_right", 18)
+	top_margin.add_theme_constant_override("margin_bottom", 10)
+	top_info_column.add_theme_constant_override("separation", 4)
+	status_label.add_theme_font_size_override("font_size", 24)
+	hint_label.visible = true
+	ai_config_label.add_theme_font_size_override("font_size", 18)
+
+
+## 按当前视口宽度调整底部操作栏，避免移动端按钮文案和最小宽度把面板撑得过高过宽。
+##
+## 调用场景：主场景初始化、窗口尺寸变化、移动端旋转后。
+## 主要逻辑：窄屏下把底栏贴近屏幕边缘，并把三个主按钮压成小按钮；宽屏时恢复桌面布局。
+func _apply_responsive_bottom_panel_layout() -> void:
+	var viewport_size: Vector2 = get_viewport_rect().size
+	var is_narrow_layout: bool = viewport_size.x <= NARROW_OVERLAY_BREAKPOINT
+
+	if is_narrow_layout:
+		bottom_panel.offset_left = 4.0
+		bottom_panel.offset_top = -48.0
+		bottom_panel.offset_right = -4.0
+		bottom_panel.offset_bottom = -4.0
+		bottom_margin.add_theme_constant_override("margin_left", 6)
+		bottom_margin.add_theme_constant_override("margin_top", 4)
+		bottom_margin.add_theme_constant_override("margin_right", 6)
+		bottom_margin.add_theme_constant_override("margin_bottom", 4)
+		bottom_primary_row.add_theme_constant_override("separation", 6)
+		cancel_selection_button.text = "取消"
+		cancel_selection_button.custom_minimum_size = Vector2(64.0, 28.0)
+		cancel_selection_button.add_theme_font_size_override("font_size", 14)
+		pause_button.custom_minimum_size = Vector2(58.0, 28.0)
+		pause_button.add_theme_font_size_override("font_size", 14)
+		restart_button.text = "重开"
+		restart_button.custom_minimum_size = Vector2(64.0, 28.0)
+		restart_button.add_theme_font_size_override("font_size", 14)
+		return
+
+	bottom_panel.offset_left = 24.0
+	bottom_panel.offset_top = -120.0
+	bottom_panel.offset_right = -24.0
+	bottom_panel.offset_bottom = -24.0
+	bottom_margin.add_theme_constant_override("margin_left", 18)
+	bottom_margin.add_theme_constant_override("margin_top", 12)
+	bottom_margin.add_theme_constant_override("margin_right", 18)
+	bottom_margin.add_theme_constant_override("margin_bottom", 12)
+	bottom_primary_row.add_theme_constant_override("separation", 18)
+	cancel_selection_button.text = "取消选择"
+	cancel_selection_button.custom_minimum_size = Vector2(160.0, 48.0)
+	cancel_selection_button.add_theme_font_size_override("font_size", 22)
+	pause_button.custom_minimum_size = Vector2(118.0, 48.0)
+	pause_button.add_theme_font_size_override("font_size", 22)
+	restart_button.text = "重新开始"
+	restart_button.custom_minimum_size = Vector2(160.0, 48.0)
+	restart_button.add_theme_font_size_override("font_size", 22)
+
+
+## 按当前视口宽度调整开局弹窗布局，避免手机上被最小宽度和双列表单挤出屏幕。
+##
+## 调用场景：主场景初始化、窗口尺寸变化、移动端旋转后。
+## 主要逻辑：窄屏下取消固定最小宽度、缩小内边距并把设置表单切成单列；同时把说明区放进滚动容器，保证底部按钮始终可见。
+func _apply_responsive_overlay_layout() -> void:
+	var viewport_size: Vector2 = get_viewport_rect().size
+	var is_narrow_layout: bool = viewport_size.x <= NARROW_OVERLAY_BREAKPOINT
+
+	if is_narrow_layout:
+		overlay_panel.anchor_left = 0.03
+		overlay_panel.anchor_right = 0.97
+		overlay_panel.anchor_top = 0.08
+		overlay_panel.anchor_bottom = 0.96
+		overlay_panel.custom_minimum_size = Vector2(0.0, 0.0)
+		overlay_margin.add_theme_constant_override("margin_left", 16)
+		overlay_margin.add_theme_constant_override("margin_top", 18)
+		overlay_margin.add_theme_constant_override("margin_right", 16)
+		overlay_margin.add_theme_constant_override("margin_bottom", 18)
+		overlay_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		overlay_settings_grid.columns = 1
+		overlay_title_label.add_theme_font_size_override("font_size", 32)
+		overlay_body_label.add_theme_font_size_override("font_size", 16)
+		overlay_rule_label.add_theme_font_size_override("font_size", 15)
+		overlay_rule_label_2.add_theme_font_size_override("font_size", 15)
+		overlay_rule_label_3.add_theme_font_size_override("font_size", 15)
+		overlay_ai_count_option.add_theme_font_size_override("font_size", 18)
+		overlay_difficulty_option.add_theme_font_size_override("font_size", 18)
+		overlay_style_option.add_theme_font_size_override("font_size", 18)
+		overlay_action_button.add_theme_font_size_override("font_size", 22)
+		return
+
+	overlay_panel.anchor_left = 0.08
+	overlay_panel.anchor_right = 0.92
+	overlay_panel.anchor_top = 0.12
+	overlay_panel.anchor_bottom = 0.9
+	overlay_panel.custom_minimum_size = Vector2(520.0, 640.0)
+	overlay_margin.add_theme_constant_override("margin_left", 28)
+	overlay_margin.add_theme_constant_override("margin_top", 28)
+	overlay_margin.add_theme_constant_override("margin_right", 28)
+	overlay_margin.add_theme_constant_override("margin_bottom", 28)
+	overlay_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	overlay_settings_grid.columns = 2
+	overlay_title_label.add_theme_font_size_override("font_size", 46)
+	overlay_body_label.add_theme_font_size_override("font_size", 26)
+	overlay_rule_label.add_theme_font_size_override("font_size", 23)
+	overlay_rule_label_2.add_theme_font_size_override("font_size", 23)
+	overlay_rule_label_3.add_theme_font_size_override("font_size", 23)
+	overlay_ai_count_option.add_theme_font_size_override("font_size", 24)
+	overlay_difficulty_option.add_theme_font_size_override("font_size", 24)
+	overlay_style_option.add_theme_font_size_override("font_size", 24)
+	overlay_action_button.add_theme_font_size_override("font_size", 28)
+
+
+## 按当前视口宽度调整出兵弹窗布局，避免移动端横向与纵向同时超出屏幕。
+##
+## 调用场景：主场景初始化、窗口尺寸变化、移动端旋转后。
+## 主要逻辑：窄屏下取消固定最小宽度、收紧边距和字号，把正文区放进滚动容器，并压缩加减按钮、快捷按钮与底部操作按钮尺寸。
+func _apply_responsive_order_dialog_layout() -> void:
+	var viewport_size: Vector2 = get_viewport_rect().size
+	var is_narrow_layout: bool = viewport_size.x <= NARROW_OVERLAY_BREAKPOINT
+	var quick_buttons: Array[Button] = [
+		order_dialog_plus_20_button,
+		order_dialog_plus_50_button,
+		order_dialog_half_button,
+		order_dialog_full_button,
+		order_dialog_recommend_button,
+		order_dialog_keep_one_button
+	]
+	var adjust_buttons: Array[Button] = [
+		order_dialog_minus_10_button,
+		order_dialog_minus_1_button,
+		order_dialog_plus_1_button,
+		order_dialog_plus_10_button
+	]
+
+	if is_narrow_layout:
+		order_dialog_panel.anchor_left = 0.03
+		order_dialog_panel.anchor_top = 0.08
+		order_dialog_panel.anchor_right = 0.97
+		order_dialog_panel.anchor_bottom = 0.92
+		order_dialog_panel.custom_minimum_size = Vector2(0.0, 0.0)
+		order_dialog_margin.add_theme_constant_override("margin_left", 14)
+		order_dialog_margin.add_theme_constant_override("margin_top", 14)
+		order_dialog_margin.add_theme_constant_override("margin_right", 14)
+		order_dialog_margin.add_theme_constant_override("margin_bottom", 14)
+		order_dialog_column.add_theme_constant_override("separation", 12)
+		order_dialog_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		order_dialog_title_label.add_theme_font_size_override("font_size", 28)
+		order_dialog_context_label.add_theme_font_size_override("font_size", 16)
+		order_dialog_recommended_label.add_theme_font_size_override("font_size", 14)
+		order_dialog_forecast_label.add_theme_font_size_override("font_size", 14)
+		order_dialog_outcome_label.add_theme_font_size_override("font_size", 16)
+		order_dialog_count_label.add_theme_font_size_override("font_size", 28)
+		order_dialog_adjust_row.add_theme_constant_override("separation", 8)
+		order_dialog_quick_grid.columns = 2
+		order_dialog_quick_grid.add_theme_constant_override("h_separation", 10)
+		order_dialog_quick_grid.add_theme_constant_override("v_separation", 10)
+		order_dialog_action_row.add_theme_constant_override("separation", 6)
+		for button in adjust_buttons:
+			button.add_theme_font_size_override("font_size", 18)
+			button.custom_minimum_size = Vector2(0.0, 42.0)
+		for button in quick_buttons:
+			button.add_theme_font_size_override("font_size", 18)
+			button.custom_minimum_size = Vector2(0.0, 42.0)
+		order_dialog_cancel_button.text = "取消"
+		order_dialog_cancel_button.add_theme_font_size_override("font_size", 14)
+		order_dialog_cancel_button.custom_minimum_size = Vector2(64.0, 36.0)
+		order_dialog_confirm_button.text = "出兵"
+		order_dialog_confirm_button.add_theme_font_size_override("font_size", 14)
+		order_dialog_confirm_button.custom_minimum_size = Vector2(68.0, 36.0)
+		return
+
+	order_dialog_panel.anchor_left = 0.1
+	order_dialog_panel.anchor_top = 0.18
+	order_dialog_panel.anchor_right = 0.9
+	order_dialog_panel.anchor_bottom = 0.84
+	order_dialog_panel.custom_minimum_size = Vector2(500.0, 520.0)
+	order_dialog_margin.add_theme_constant_override("margin_left", 24)
+	order_dialog_margin.add_theme_constant_override("margin_top", 24)
+	order_dialog_margin.add_theme_constant_override("margin_right", 24)
+	order_dialog_margin.add_theme_constant_override("margin_bottom", 24)
+	order_dialog_column.add_theme_constant_override("separation", 16)
+	order_dialog_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	order_dialog_title_label.add_theme_font_size_override("font_size", 46)
+	order_dialog_context_label.add_theme_font_size_override("font_size", 26)
+	order_dialog_recommended_label.add_theme_font_size_override("font_size", 17)
+	order_dialog_forecast_label.add_theme_font_size_override("font_size", 17)
+	order_dialog_outcome_label.add_theme_font_size_override("font_size", 26)
+	order_dialog_count_label.add_theme_font_size_override("font_size", 46)
+	order_dialog_adjust_row.add_theme_constant_override("separation", 14)
+	order_dialog_quick_grid.columns = 3
+	order_dialog_quick_grid.add_theme_constant_override("h_separation", 14)
+	order_dialog_quick_grid.add_theme_constant_override("v_separation", 14)
+	order_dialog_action_row.add_theme_constant_override("separation", 16)
+	for button in adjust_buttons:
+		button.add_theme_font_size_override("font_size", 24)
+		button.custom_minimum_size = Vector2(0.0, 52.0)
+	order_dialog_minus_10_button.custom_minimum_size = Vector2(110.0, 52.0)
+	order_dialog_minus_1_button.custom_minimum_size = Vector2(100.0, 52.0)
+	order_dialog_plus_1_button.custom_minimum_size = Vector2(100.0, 52.0)
+	order_dialog_plus_10_button.custom_minimum_size = Vector2(110.0, 52.0)
+	for button in quick_buttons:
+		button.add_theme_font_size_override("font_size", 24)
+		button.custom_minimum_size = Vector2(0.0, 52.0)
+	order_dialog_cancel_button.text = "取消"
+	order_dialog_cancel_button.add_theme_font_size_override("font_size", 26)
+	order_dialog_cancel_button.custom_minimum_size = Vector2(180.0, 58.0)
+	order_dialog_confirm_button.text = "确认出兵"
+	order_dialog_confirm_button.add_theme_font_size_override("font_size", 26)
+	order_dialog_confirm_button.custom_minimum_size = Vector2(220.0, 58.0)
 
 
 ## 推进战局主循环，包括行军、产兵和敌军 AI 下单。
@@ -301,6 +588,7 @@ func _spawn_city_views() -> void:
 		city_view.setup(city.city_id, city.name)
 		city_view.city_pressed.connect(_on_city_pressed)
 		_city_views[city.city_id] = city_view
+	_log_all_city_positions()
 
 
 ## 处理玩家点击城市后的选中、下单和取消逻辑。
@@ -312,7 +600,17 @@ func _on_city_pressed(city_id: int) -> void:
 	if _game_over or not _game_started or order_dialog_layer.visible:
 		return
 
+	_skip_selection_cancel_guard_count = 2
+
 	var clicked_city = _cities[city_id]
+	_log_input_debug("city_pressed", {
+		"city_id": city_id,
+		"city_name": clicked_city.name,
+		"owner": clicked_city.owner,
+		"selected_before": _selected_city_id,
+		"screen_position": _get_screen_position(clicked_city.position),
+		"world_position": clicked_city.position
+	})
 	if _selected_city_id == -1:
 		if clicked_city.owner != PrototypeCityOwnerRef.PLAYER:
 			status_label.text = "先点蓝色己方城市。"
@@ -424,7 +722,10 @@ func _refresh_view() -> void:
 		if city_view != null:
 			city_view.sync_from_state(city, city.city_id == _selected_city_id, _get_screen_position(city.position))
 	var pause_suffix: String = " | 已暂停" if _manual_paused else ""
-	ai_config_label.text = "对局：%d 方 | %s | %s%s" % [_player_count, _get_ai_difficulty_name(_ai_difficulty), _get_ai_style_name(_ai_style), pause_suffix]
+	if get_viewport_rect().size.x <= NARROW_OVERLAY_BREAKPOINT:
+		ai_config_label.text = "%d方 | %s | %s%s" % [_player_count, _get_ai_difficulty_name(_ai_difficulty), _get_ai_style_name(_ai_style), pause_suffix]
+	else:
+		ai_config_label.text = "对局：%d 方 | %s | %s%s" % [_player_count, _get_ai_difficulty_name(_ai_difficulty), _get_ai_style_name(_ai_style), pause_suffix]
 	cancel_selection_button.disabled = _selected_city_id == -1 or _game_over or not _game_started or order_dialog_layer.visible or _manual_paused
 	pause_button.disabled = _game_over or not _game_started
 	pause_button.text = "继续" if _manual_paused else "暂停"
@@ -1054,6 +1355,49 @@ func _finish_map_drag(pointer_kind: String, pointer_index: int = -1) -> bool:
 	return was_dragging
 
 
+## 消耗一次“选城后短时间内不要立刻取消”的保护计数。
+##
+## 调用场景：鼠标或触摸抬起、准备执行空白取消选城前。
+## 主要逻辑：城市节点完成选中后，浏览器或引擎可能继续派发同一轮触摸对应的抬起事件；
+## 这里保留一个极短的保护窗口，吞掉随后的取消请求，避免移动端首点城市后立即被清空。
+func _consume_selection_cancel_guard() -> bool:
+	if _skip_selection_cancel_guard_count <= 0:
+		return false
+	_skip_selection_cancel_guard_count -= 1
+	_log_input_debug("cancel_guard_consumed", {
+		"remaining": _skip_selection_cancel_guard_count,
+		"selected_city_id": _selected_city_id
+	})
+	return true
+
+
+## 打印当前全部城市的世界坐标与屏幕坐标，便于排查移动端点击命中问题。
+##
+## 调用场景：新地图生成并实例化城市表现节点后。
+## 主要逻辑：遍历所有城市，统一输出城市编号、名字、阵营、世界坐标和当前屏幕坐标，便于与手机点击日志对照。
+func _log_all_city_positions() -> void:
+	if not INPUT_DEBUG_LOG_ENABLED:
+		return
+	for city in _cities:
+		_log_input_debug("city_position", {
+			"city_id": city.city_id,
+			"city_name": city.name,
+			"owner": city.owner,
+			"world_position": city.position,
+			"screen_position": _get_screen_position(city.position)
+		})
+
+
+## 统一输出输入调试日志，避免点击链路排查时日志格式混乱。
+##
+## 调用场景：输入事件、选城事件、取消事件以及命中测试排查时。
+## 主要逻辑：把来源标签和上下文字典格式化为单行日志，方便在浏览器 Console 中按关键字搜索与对照。
+func _log_input_debug(tag: String, payload: Dictionary = {}) -> void:
+	if not INPUT_DEBUG_LOG_ENABLED:
+		return
+	print("[input-debug] ", tag, " | ", JSON.stringify(payload))
+
+
 ## 展示开局说明面板，并暂停战局推进。
 ##
 ## 调用场景：首次进入场景、点击重新开始后新开一局时。
@@ -1202,31 +1546,75 @@ func _is_gameplay_paused() -> bool:
 	return _manual_paused or order_dialog_layer.visible or overlay_layer.visible
 
 
-## 处理玩家在主场景上的点击，用于快速取消当前选城。
+## 处理玩家在主场景上的原始输入，用于地图拖拽与基础指针跟踪。
 ##
 ## 调用场景：鼠标左键或单点触控按下时。
-## 主要逻辑：不再依赖 `_unhandled_input()` 的分发时机，而是主动判断点击是否命中城市或 UI；
-## 只有真正点到战场空白区域时，才取消当前选城。
+## 主要逻辑：这里只处理拖拽相关的按下、移动和释放；选城取消交给 `_unhandled_input()`，
+## 这样城市节点一旦消费了点击，空白取消逻辑就不会再重复执行。
 func _input(event: InputEvent) -> void:
 	if _game_over or not _game_started or order_dialog_layer.visible or overlay_layer.visible:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		_log_input_debug("mouse_button", {
+			"pressed": event.pressed,
+			"position": event.position,
+			"selected_city_id": _selected_city_id
+		})
 		_handle_mouse_drag_input(event)
 	elif event is InputEventMouseMotion:
 		_handle_mouse_motion_input(event)
 	elif event is InputEventScreenTouch:
+		_log_input_debug("screen_touch", {
+			"pressed": event.pressed,
+			"index": event.index,
+			"position": event.position,
+			"selected_city_id": _selected_city_id
+		})
 		_handle_touch_drag_input(event)
 	elif event is InputEventScreenDrag:
+		_log_input_debug("screen_drag", {
+			"index": event.index,
+			"position": event.position,
+			"selected_city_id": _selected_city_id
+		})
 		_handle_screen_drag_input(event)
+
+
+## 处理未被城市节点或 HUD 消费的输入事件，用于把真正的空白点击转换成取消选城。
+##
+## 调用场景：Godot 在 `_input()` 和节点 `_input_event()` 之后，把仍未处理的释放事件分发到这里。
+## 主要逻辑：只有未被消费、且没有发生拖拽的释放事件才会进入取消逻辑；因此城市点击不会再与空白取消重复消费。
+func _unhandled_input(event: InputEvent) -> void:
+	if _game_over or not _game_started or order_dialog_layer.visible or overlay_layer.visible or _manual_paused:
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		_log_input_debug("unhandled_mouse_release", {
+			"position": event.position,
+			"selected_city_id": _selected_city_id
+		})
+		_handle_selection_cancel_release(event.position)
+	elif event is InputEventScreenTouch and not event.pressed:
+		_log_input_debug("unhandled_touch_release", {
+			"index": event.index,
+			"position": event.position,
+			"selected_city_id": _selected_city_id
+		})
+		_handle_selection_cancel_release(event.position)
 
 
 ## 处理桌面端鼠标按下/抬起，以区分地图拖拽和普通点击。
 ##
 ## 调用场景：主场景收到鼠标左键事件时。
-## 主要逻辑：按下时记录拖拽候选；抬起时若发生过拖拽则直接结束，
-## 若没有拖拽且当前存在选中城市，再把真正的空白点击转换成取消选择。
+## 主要逻辑：按下时记录拖拽候选；抬起时若发生过拖拽则直接结束并消费，未拖拽则交给 `_unhandled_input()` 判定是否取消选城。
 func _handle_mouse_drag_input(event: InputEventMouseButton) -> void:
 	if event.pressed:
+		if _skip_selection_cancel_guard_count > 0:
+			_log_input_debug("clear_cancel_guard_on_mouse_press", {
+				"selected_city_id": _selected_city_id,
+				"remaining": _skip_selection_cancel_guard_count,
+				"position": event.position
+			})
+			_skip_selection_cancel_guard_count = 0
 		if _manual_paused or not _can_start_map_drag(event.position):
 			return
 		_begin_map_drag_candidate(event.position, "mouse")
@@ -1235,13 +1623,7 @@ func _handle_mouse_drag_input(event: InputEventMouseButton) -> void:
 	var was_dragging: bool = _finish_map_drag("mouse")
 	if was_dragging:
 		get_viewport().set_input_as_handled()
-		return
-	if _selected_city_id == -1 or _manual_paused:
-		return
-	if _should_ignore_selection_cancel(event.position):
-		return
-	_clear_selection_with_message("已取消选择。重新点一个蓝色城市即可。")
-	get_viewport().set_input_as_handled()
+	return
 
 
 ## 处理桌面端鼠标移动，用于实时平移大地图。
@@ -1259,9 +1641,17 @@ func _handle_mouse_motion_input(event: InputEventMouseMotion) -> void:
 ##
 ## 调用场景：主场景收到单点触控事件时。
 ## 主要逻辑：触摸开始时记录拖拽候选；触摸结束时若本次已经拖拽过则忽略，
-## 否则保留点击语义，让城市节点或空白取消逻辑继续生效。
+## 未拖拽则把点击语义留给城市节点或 `_unhandled_input()` 的空白取消逻辑。
 func _handle_touch_drag_input(event: InputEventScreenTouch) -> void:
 	if event.pressed:
+		if _skip_selection_cancel_guard_count > 0:
+			_log_input_debug("clear_cancel_guard_on_touch_press", {
+				"selected_city_id": _selected_city_id,
+				"remaining": _skip_selection_cancel_guard_count,
+				"index": event.index,
+				"position": event.position
+			})
+			_skip_selection_cancel_guard_count = 0
 		if _manual_paused or not _can_start_map_drag(event.position):
 			return
 		_begin_map_drag_candidate(event.position, "touch", event.index)
@@ -1270,13 +1660,7 @@ func _handle_touch_drag_input(event: InputEventScreenTouch) -> void:
 	var was_dragging: bool = _finish_map_drag("touch", event.index)
 	if was_dragging:
 		get_viewport().set_input_as_handled()
-		return
-	if _selected_city_id == -1 or _manual_paused:
-		return
-	if _should_ignore_selection_cancel(event.position):
-		return
-	_clear_selection_with_message("已取消选择。重新点一个蓝色城市即可。")
-	get_viewport().set_input_as_handled()
+	return
 
 
 ## 处理移动端/Web 的单指拖动事件。
@@ -1292,17 +1676,41 @@ func _handle_screen_drag_input(event: InputEventScreenDrag) -> void:
 		get_viewport().set_input_as_handled()
 
 
+## 处理一次释放事件对应的“空白取消选城”逻辑。
+##
+## 调用场景：`_unhandled_input()` 收到鼠标或触摸抬起事件时。
+## 主要逻辑：先吞掉紧跟在选城后的兼容事件，再检查是否真的点在纯战场空白处；只有满足条件时才取消当前选中城市。
+func _handle_selection_cancel_release(pointer_position: Vector2) -> void:
+	if _consume_selection_cancel_guard():
+		return
+	if _selected_city_id == -1:
+		return
+	_log_input_debug("selection_cancel_check", {
+		"pointer_position": pointer_position,
+		"picked_city_id": _pick_city_at_position(pointer_position),
+		"selected_city_id": _selected_city_id,
+		"bottom_hit": bottom_panel.get_global_rect().has_point(pointer_position),
+		"upgrade_hit": floating_upgrade_panel.visible and floating_upgrade_panel.get_global_rect().has_point(pointer_position)
+	})
+	if _should_ignore_selection_cancel(pointer_position):
+		return
+	_clear_selection_with_message("已取消选择。重新点一个蓝色城市即可。")
+	get_viewport().set_input_as_handled()
+
+
 ## 判断当前屏幕点击是否命中了任意城市。
 ##
 ## 调用场景：空白点击取消选择前的命中判定。
-## 主要逻辑：按城市中心和表现节点的矩形点击范围做包围盒测试；命中任意城市则返回该城市编号，否则返回 -1。
+## 主要逻辑：直接基于城市表现节点的当前屏幕位置做命中测试，而不是回退到世界坐标手算，
+## 这样地图平移、移动端缩放和文字区域扩展后，判定范围仍与玩家看到的图标位置保持一致。
 func _pick_city_at_position(pointer_position: Vector2) -> int:
-	var world_position: Vector2 = _get_world_position(pointer_position)
-	var half_size: Vector2 = PrototypeCityViewRef.CITY_SIZE * 0.5
-	for city in _cities:
-		var city_rect := Rect2(city.position - half_size, PrototypeCityViewRef.CITY_SIZE)
-		if city_rect.has_point(world_position):
-			return city.city_id
+	for city_id in _city_views.keys():
+		var city_view: PrototypeCityView = _city_views[city_id]
+		var hitbox_position: Vector2 = city_view.global_position + Vector2(-70.0, -44.0)
+		var hitbox_size: Vector2 = Vector2(140.0, 170.0)
+		var city_rect := Rect2(hitbox_position, hitbox_size)
+		if city_rect.has_point(pointer_position):
+			return int(city_id)
 	return -1
 
 
@@ -1516,8 +1924,12 @@ func _on_pause_button_pressed() -> void:
 ## 初始化背景音乐和操作音效资源。
 ##
 ## 调用场景：主场景首次进入树时。
-## 主要逻辑：使用代码生成短音效与简短循环旋律，避免依赖外部音频素材文件。
+## 主要逻辑：Web 平台为兼容移动端浏览器音频限制会禁用内置音效；其他平台使用代码生成短音效与循环旋律。
 func _setup_audio() -> void:
+	if OS.has_feature("web"):
+		_audio_ready = false
+		return
+
 	_music_stream = _create_melody_stream([262.0, 330.0, 392.0, 330.0, 440.0, 392.0, 330.0, 294.0], 0.22, 0.16)
 	_select_sfx_stream = _create_tone_stream(784.0, 0.09, 0.22)
 	_transfer_sfx_stream = _create_two_tone_stream(523.0, 659.0, 0.08, 0.18)
