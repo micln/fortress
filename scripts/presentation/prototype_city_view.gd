@@ -16,9 +16,6 @@ var city_id: int = -1
 var city_name: String = ""
 var city_owner: int = PrototypeCityOwnerRef.NEUTRAL
 var city_level: int = 1
-var city_defense: int = 1
-var city_production_rate: float = 1.0
-var soldiers: int = 0
 var is_selected: bool = false
 var _mouse_pressing: bool = false
 var _mouse_press_position: Vector2 = Vector2.ZERO
@@ -55,9 +52,6 @@ func setup(p_city_id: int, p_city_name: String) -> void:
 func sync_from_state(city, selected: bool, screen_position: Vector2) -> void:
 	city_owner = city.owner
 	city_level = city.level
-	city_defense = city.defense
-	city_production_rate = city.production_rate
-	soldiers = city.soldiers
 	is_selected = selected
 	position = screen_position
 	name_label.text = city.name

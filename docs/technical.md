@@ -4,14 +4,16 @@
 
 - 主场景：`scenes/main/prototype_main.tscn`
 - 主控制脚本：`scripts/presentation/prototype_main_game.gd`
-- 当前生效的是 `prototype_*` 这一套实现，旧的非 `prototype_` 文件不作为当前原型入口
+- 当前运行入口集中在 `prototype_*` 这一套实现上
 
 ## 窗口与分辨率策略
 
 - 项目不使用固定逻辑分辨率作为运行时前提。
+- 桌面端（非 Web、非移动平台）启动时，会优先把默认窗口调整到横屏基线（`1280x720`），减少桌面初始进入时的纵向压缩。
 - `prototype_main_game.gd` 启动时会读取当前窗口尺寸，并写入 `Window.content_scale_size` 作为内容分辨率。
 - Web 平台仅在触屏设备上才会用 `DisplayServer.screen_get_scale()` 把窗口像素尺寸换算成逻辑尺寸，避免高 DPI 手机上 UI 与字体被额外缩小；桌面端保持像素尺寸以避免黑边。
 - 当窗口尺寸变化时（`size_changed` 与 `NOTIFICATION_WM_SIZE_CHANGED`），会再次同步 `content_scale_size`，实现动态分辨率。
+- 当窗口尺寸变化时，`prototype_main_game.gd` 还会按当前视口重新计算目标地图世界尺寸，并以“只扩不缩”的方式扩展 `_map_world_size`，保证背景覆盖范围始终大于可视区，避免桌面拉大窗口后出现黑边。
 - 项目保持 `canvas_items + expand + fractional` 的拉伸策略，保证不同窗口宽高变化时画面可连续自适应。
 - `Overlay` 与 `OrderDialog` 弹窗使用锚点比例布局和最小尺寸约束，窗口变化时会同步调整位置与大小。
 - 顶部状态栏与底部操作栏会在窄屏下切换为更激进的移动端 HUD：顶部几乎贴边，只保留核心状态与精简后的对局摘要；底部则压成三枚小按钮，优先把战场可视面积让给地图。

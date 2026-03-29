@@ -4,13 +4,6 @@
 [ext_resource type="Script" path="res://scripts/presentation/prototype_city_view.gd" id="2_city"]
 [ext_resource type="FontFile" path="res://assets/fonts/NotoSansSC-Regular.otf" id="3_font"]
 
-[sub_resource type="LabelSettings" id="LabelSettings_title"]
-font = ExtResource("3_font")
-font_size = 24
-font_color = Color(0.980392, 0.988235, 1, 1)
-outline_size = 2
-outline_color = Color(0.0196078, 0.0313726, 0.054902, 0.9)
-
 [sub_resource type="LabelSettings" id="LabelSettings_status"]
 font = ExtResource("3_font")
 font_size = 20
@@ -139,11 +132,6 @@ theme_override_constants/margin_bottom = 10
 
 [node name="InfoColumn" type="VBoxContainer" parent="UILayer/TopPanel/Margin"]
 theme_override_constants/separation = 4
-
-[node name="TitleLabel" type="Label" parent="UILayer/TopPanel/Margin/InfoColumn"]
-text = "Fortress War"
-label_settings = SubResource("LabelSettings_title")
-visible = false
 
 [node name="StatusLabel" type="Label" parent="UILayer/TopPanel/Margin/InfoColumn"]
 text = "选择己方城市，然后点击相邻目标城市发起进攻。"

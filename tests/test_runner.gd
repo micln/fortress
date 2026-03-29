@@ -38,6 +38,7 @@ func _initialize() -> void:
 	_run_test("enemy_ai_upgrade", Callable(self, "_test_enemy_ai_upgrade"), failures)
 	_run_test("map_multi_ai_spawn", Callable(self, "_test_map_multi_ai_spawn"), failures)
 	_run_test("map_connectivity", Callable(self, "_test_map_connectivity"), failures)
+	_run_test("legacy_main_chain_removed", Callable(self, "_test_legacy_main_chain_removed"), failures)
 
 	if failures.is_empty():
 		print("ALL TESTS PASSED")
@@ -423,3 +424,32 @@ func _test_map_connectivity() -> bool:
 			queue.append(neighbor_id)
 
 	return visited.size() == cities.size()
+
+
+## 验证已确认淘汰的 legacy main chain 文件已全部移除。
+##
+## 调用场景：代码清理回归测试。
+## 主要逻辑：逐个检查已确认废弃的场景和脚本路径，只要还有任意遗留文件存在就返回失败，防止旧主链再次混入仓库。
+func _test_legacy_main_chain_removed() -> bool:
+	var forbidden_paths: Array[String] = [
+		"res://scenes/main/main.tscn",
+		"res://scripts/presentation/main_game.gd",
+		"res://scripts/presentation/city_view.gd",
+		"res://scripts/presentation/map_view.gd",
+		"res://scripts/presentation/hud.gd",
+		"res://scripts/application/game_state.gd",
+		"res://scripts/application/battle_service.gd",
+		"res://scripts/application/enemy_ai.gd",
+		"res://scripts/application/enemy_ai_service.gd",
+		"res://scripts/application/map_generator.gd",
+		"res://scripts/domain/city.gd",
+		"res://scripts/domain/city_state.gd",
+		"res://scripts/domain/city_owner.gd",
+		"res://scripts/domain/faction.gd",
+		"res://scripts/domain/road.gd",
+		"res://scripts/domain/battle_resolver.gd"
+	]
+	for forbidden_path: String in forbidden_paths:
+		if ResourceLoader.exists(forbidden_path):
+			return false
+	return true

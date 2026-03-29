@@ -7,6 +7,8 @@ const PrototypeEnemyAiServiceRef = preload("res://scripts/application/prototype_
 const PrototypeCityViewRef = preload("res://scripts/presentation/prototype_city_view.gd")
 const UI_FONT: Font = preload("res://assets/fonts/NotoSansSC-Regular.otf")
 const MAP_WORLD_SCALE: Vector2 = Vector2(1.75, 1.6)
+const MAP_WORLD_PADDING: Vector2 = Vector2(320.0, 480.0)
+const DESKTOP_DEFAULT_LANDSCAPE_SIZE: Vector2i = Vector2i(1280, 720)
 const MARCH_SPEED: float = 180.0
 const UNIT_RADIUS: float = 16.0
 const MARCH_COLLISION_DISTANCE: float = 34.0
@@ -68,6 +70,7 @@ var _drag_pointer_index: int = -1
 var _drag_press_position: Vector2 = Vector2.ZERO
 var _drag_last_position: Vector2 = Vector2.ZERO
 var _skip_selection_cancel_guard_count: int = 0
+var _last_window_resize_frame: int = -1
 
 @onready var cities_root: Node2D = $Cities
 @onready var bgm_player: AudioStreamPlayer = $BgmPlayer
@@ -139,6 +142,7 @@ var _skip_selection_cancel_guard_count: int = 0
 func _ready() -> void:
 	_random.randomize()
 	ThemeDB.fallback_font = UI_FONT
+	_apply_desktop_default_landscape()
 	_apply_dynamic_resolution()
 	_apply_responsive_hud_layout()
 	_apply_responsive_bottom_panel_layout()
@@ -179,12 +183,54 @@ func _ready() -> void:
 func _notification(what: int) -> void:
 	if what != NOTIFICATION_WM_SIZE_CHANGED or not is_node_ready():
 		return
+	_handle_window_size_changed()
+
+
+## 统一处理窗口尺寸变化时的分辨率、布局与地图尺寸刷新，避免多入口重复执行。
+##
+## 调用场景：`size_changed` 信号、`NOTIFICATION_WM_SIZE_CHANGED` 通知。
+## 主要逻辑：同一帧只执行一次刷新链路，避免桌面拖拽窗口时重复触发导致的抖动或额外开销。
+func _handle_window_size_changed() -> void:
+	var current_frame: int = Engine.get_process_frames()
+	if _last_window_resize_frame == current_frame:
+		return
+	_last_window_resize_frame = current_frame
 	_apply_dynamic_resolution()
 	_apply_responsive_hud_layout()
 	_apply_responsive_bottom_panel_layout()
 	_apply_responsive_overlay_layout()
 	_apply_responsive_order_dialog_layout()
+	_resize_map_world_for_viewport()
 	_set_map_offset(_map_offset)
+
+
+## 桌面端启动时默认切到横屏窗口，减少初次进入就出现竖屏战场压缩的问题。
+##
+## 调用场景：主场景 `_ready()` 的最早阶段。
+## 主要逻辑：仅在桌面平台且当前窗口宽高为竖向时，把窗口改为统一的横屏默认尺寸。
+func _apply_desktop_default_landscape() -> void:
+	if not _is_desktop_runtime():
+		return
+	var window: Window = get_window()
+	if window.size.x >= window.size.y:
+		return
+	window.size = DESKTOP_DEFAULT_LANDSCAPE_SIZE
+
+
+## 判断当前运行是否属于桌面环境，避免把移动端/Web 强制成横屏。
+##
+## 调用场景：桌面横屏默认策略判断时。
+## 主要逻辑：过滤掉 Web、Android、iOS 平台，剩余视为桌面运行时。
+func _is_desktop_runtime() -> bool:
+	if OS.has_feature("web"):
+		return false
+	if OS.has_feature("android"):
+		return false
+	if OS.has_feature("ios"):
+		return false
+	if DisplayServer.get_name() == "headless":
+		return false
+	return true
 
 
 ## 按当前窗口逻辑尺寸设置内容分辨率，避免高 DPI 设备把 UI 误缩小。
@@ -225,11 +271,22 @@ func _to_logical_window_size(pixel_size: Vector2i) -> Vector2i:
 ## 调用场景：窗口拖拽、移动端旋转、Web 画布尺寸变化时由引擎信号触发。
 ## 主要逻辑：把最新窗口尺寸同步到内容分辨率，确保画面持续自适应。
 func _on_window_size_changed() -> void:
-	_apply_dynamic_resolution()
-	_apply_responsive_hud_layout()
-	_apply_responsive_bottom_panel_layout()
-	_apply_responsive_overlay_layout()
-	_apply_responsive_order_dialog_layout()
+	_handle_window_size_changed()
+
+
+## 根据当前视口尺寸扩展地图世界尺寸，避免桌面拉大窗口后露出黑边。
+##
+## 调用场景：窗口尺寸变化时。
+## 主要逻辑：按当前视口计算目标地图尺寸，只做“扩张不收缩”，保证已有城市坐标始终有效且不被裁切。
+func _resize_map_world_for_viewport() -> void:
+	if _cities.is_empty():
+		return
+	var viewport_size: Vector2 = get_viewport_rect().size
+	var target_size: Vector2 = _get_target_map_world_size(viewport_size)
+	_map_world_size = Vector2(
+		max(_map_world_size.x, target_size.x),
+		max(_map_world_size.y, target_size.y)
+	)
 
 
 ## 按当前视口宽度调整顶部和底部 HUD，减少移动端对主战场可视空间的占用。
@@ -553,10 +610,7 @@ func _start_new_match() -> void:
 	order_dialog_layer.visible = false
 	_apply_ai_profile()
 	var viewport_size: Vector2 = get_viewport_rect().size
-	_map_world_size = Vector2(
-		max(viewport_size.x + 320.0, viewport_size.x * MAP_WORLD_SCALE.x),
-		max(viewport_size.y + 480.0, viewport_size.y * MAP_WORLD_SCALE.y)
-	)
+	_map_world_size = _get_target_map_world_size(viewport_size)
 	_cities = _map_generator.generate_map(9, _random, _player_count - 1, _map_world_size)
 	_center_map_offset()
 	_spawn_city_views()
@@ -1265,6 +1319,17 @@ func _center_map_offset() -> void:
 	var viewport_size: Vector2 = get_viewport_rect().size
 	_map_offset = (viewport_size - _map_world_size) * 0.5
 	_map_offset = _clamp_map_offset(_map_offset)
+
+
+## 根据视口尺寸计算目标地图世界尺寸，统一地图大小策略，避免各处散落魔法数字。
+##
+## 调用场景：新开一局初始化地图尺寸、窗口尺寸变化时扩展地图尺寸。
+## 主要逻辑：地图至少比视口更大（固定留白 + 比例放大），确保拖拽浏览空间和无黑边背景覆盖。
+func _get_target_map_world_size(viewport_size: Vector2) -> Vector2:
+	return Vector2(
+		max(viewport_size.x + MAP_WORLD_PADDING.x, viewport_size.x * MAP_WORLD_SCALE.x),
+		max(viewport_size.y + MAP_WORLD_PADDING.y, viewport_size.y * MAP_WORLD_SCALE.y)
+	)
 
 
 ## 对地图偏移做边界钳制，防止玩家把整个战场拖出屏幕。

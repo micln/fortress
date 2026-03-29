@@ -8,8 +8,6 @@
 - 主控制器：`scripts/presentation/prototype_main_game.gd`
 - 城市视图：`scripts/presentation/prototype_city_view.gd`
 
-旧的非 `prototype_` 文件保留在仓库中，但不是当前原型入口。
-
 ## 分层
 
 ### `scripts/domain/`
