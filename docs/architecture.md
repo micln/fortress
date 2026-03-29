@@ -21,6 +21,10 @@
 
 - `prototype_map_generator.gd`
   - 随机地图、道路连通性、开局总方数分配、城市命名
+- `prototype_preset_map_definition.gd`
+  - 第一张中国风预设地图的 design canvas、城市、道路与按方数划分的出生配置
+- `prototype_preset_map_loader.gd`
+  - 校验预设地图模板、映射设计坐标到运行时世界坐标，并生成 `PrototypeCityState` 数组
 - `prototype_battle_service.gd`
   - 出兵准备、攻城结算、运兵结算、路上遭遇战、按产能产兵、防御参与攻城、城市升级、胜负判断
 - `prototype_enemy_ai_service.gd`
@@ -57,6 +61,7 @@
 
 - 核心规则尽量沉到服务层，方便 headless 测试
 - 地图始终保证连通，避免不可达孤岛
+- 当前第一阶段默认从预设地图 loader 开局，而不是直接走随机地图生成器；随机地图生成器保留，供后续并存扩展
 - 多方混战采用统一阵营编号模型，而不是写死“玩家 vs 单敌军”
 - 暂停和出兵面板只冻结时间推进，不重置战局状态
 - 城市 UI 采用符号化绘制，避免依赖外部美术资源也能快速迭代

@@ -1,7 +1,7 @@
 extends Node2D
 
 const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
-const PrototypeMapGeneratorRef = preload("res://scripts/application/prototype_map_generator.gd")
+const PrototypePresetMapLoaderRef = preload("res://scripts/application/prototype_preset_map_loader.gd")
 const PrototypeBattleServiceRef = preload("res://scripts/application/prototype_battle_service.gd")
 const PrototypeEnemyAiServiceRef = preload("res://scripts/application/prototype_enemy_ai_service.gd")
 const PrototypeCityViewRef = preload("res://scripts/presentation/prototype_city_view.gd")
@@ -32,7 +32,7 @@ const AI_STYLE_ITEMS: Array = [
 ]
 
 var _random: RandomNumberGenerator = RandomNumberGenerator.new()
-var _map_generator = PrototypeMapGeneratorRef.new()
+var _preset_map_loader = PrototypePresetMapLoaderRef.new()
 var _battle_service = PrototypeBattleServiceRef.new()
 var _enemy_ai_service = PrototypeEnemyAiServiceRef.new()
 var _cities: Array = []
@@ -592,7 +592,7 @@ func _draw() -> void:
 ## 重置运行时状态并生成一局新地图。
 ##
 ## 调用场景：首次进入游戏、点击重新开始、胜负结束后再开一局时。
-## 主要逻辑：清空旧城市节点、旧行军队列和旧待确认订单，再生成新的城市数据和表现节点。
+## 主要逻辑：清空旧城市节点、旧行军队列和旧待确认订单，再通过当前地图来源构建新的城市数据和表现节点。
 func _start_new_match() -> void:
 	_game_over = false
 	_game_started = false
@@ -611,7 +611,11 @@ func _start_new_match() -> void:
 	_apply_ai_profile()
 	var viewport_size: Vector2 = get_viewport_rect().size
 	_map_world_size = _get_target_map_world_size(viewport_size)
-	_cities = _map_generator.generate_map(9, _random, _player_count - 1, _map_world_size)
+	_cities = _preset_map_loader.build_map({
+		"player_count": _player_count,
+		"ai_difficulty": _ai_difficulty,
+		"ai_style": _ai_style
+	}, _map_world_size, _random)
 	_center_map_offset()
 	_spawn_city_views()
 	status_label.text = "阅读说明后点击“开始游戏”。"

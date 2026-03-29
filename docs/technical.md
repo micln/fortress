@@ -5,6 +5,7 @@
 - 主场景：`scenes/main/prototype_main.tscn`
 - 主控制脚本：`scripts/presentation/prototype_main_game.gd`
 - 当前运行入口集中在 `prototype_*` 这一套实现上
+- 当前第一阶段默认地图来源为预设地图 loader；随机地图生成器仍保留在仓库中，但不再作为默认开局路径
 
 ## 窗口与分辨率策略
 
@@ -44,6 +45,10 @@
 
 - `scripts/application/prototype_map_generator.gd`
   - 地图生成、道路连通、开局势力分配、城市命名
+- `scripts/application/prototype_preset_map_definition.gd`
+  - 第一张中国风抽象战略图的 design canvas、城市静态数据、道路与 `2` 至 `5` 方出生配置
+- `scripts/application/prototype_preset_map_loader.gd`
+  - 校验预设地图定义、按 design canvas 映射运行时坐标、应用当前方数出生配置并输出城市数组
 - `scripts/application/prototype_battle_service.gd`
   - 出兵准备、到城结算、运兵失守重战、路上遭遇战、按产能产兵、城市升级、胜负判断
 - `scripts/application/prototype_enemy_ai_service.gd`
@@ -84,7 +89,7 @@
 
 ## 运行时数据流
 
-1. `prototype_main_game.gd` 在开局时调用 `prototype_map_generator.gd` 生成城市数组
+1. `prototype_main_game.gd` 在开局时调用 `prototype_preset_map_loader.gd` 生成城市数组
 2. 城市数组被复制成若干 `PrototypeCityView` 节点，负责显示和点击
 3. 玩家或电脑下令后，主场景创建行军单位字典并逐帧推进
 4. 路上若发生不同势力接触，调用 `PrototypeBattleService.resolve_marching_encounter()`
@@ -92,9 +97,17 @@
 6. 每秒通过 `produce_soldiers()` 按各城市产能推进占领城市产兵
 7. 每轮推进后通过 `get_winner()` 判断是否只剩一个非中立势力
 
+## 预设地图与坐标映射
+
+- 第一阶段预设地图使用固定 design canvas 坐标，而不是直接把最终世界坐标写死在模板里。
+- `prototype_preset_map_loader.gd` 会按当前 `_map_world_size` 把 design canvas 坐标映射到运行时世界坐标，保证同一张地图模板可适配当前大地图尺寸。
+- 第一张预设地图定义了 `2` 至 `5` 方的出生配置，主场景继续复用当前开始面板中的总方数选择。
+- 未被当前方数使用的出生城会在该局中回落为中立城市，避免第一阶段为了预设地图破坏现有开局 UI。
+
 ## 大地图与输入实现
 
 - `prototype_map_generator.gd` 生成的是地图世界坐标，不再假设坐标一定落在单屏视口内。
+- `prototype_preset_map_loader.gd` 输出的预设地图坐标也会落在同一套地图世界坐标系内，因此后续拖拽、点击命中和道路绘制逻辑无需重写。
 - `prototype_main_game.gd` 维护 `_map_offset`，统一负责 `world -> screen` 与 `screen -> world` 转换。
 - 城市节点、道路、行军单位、浮动升级条都必须经过同一套偏移换算，避免拖拽后表现错位。
 - HUD、说明遮罩、出兵弹窗仍固定在 `CanvasLayer`，不随地图拖动。

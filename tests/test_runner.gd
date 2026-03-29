@@ -5,6 +5,8 @@ const PrototypeCityStateRef = preload("res://scripts/domain/prototype_city_state
 const PrototypeBattleServiceRef = preload("res://scripts/application/prototype_battle_service.gd")
 const PrototypeEnemyAiServiceRef = preload("res://scripts/application/prototype_enemy_ai_service.gd")
 const PrototypeMapGeneratorRef = preload("res://scripts/application/prototype_map_generator.gd")
+const PrototypePresetMapDefinitionRef = preload("res://scripts/application/prototype_preset_map_definition.gd")
+const PrototypePresetMapLoaderRef = preload("res://scripts/application/prototype_preset_map_loader.gd")
 
 
 ## 运行项目内的最小自定义测试集，并在全部通过后正常退出。
@@ -38,6 +40,10 @@ func _initialize() -> void:
 	_run_test("enemy_ai_upgrade", Callable(self, "_test_enemy_ai_upgrade"), failures)
 	_run_test("map_multi_ai_spawn", Callable(self, "_test_map_multi_ai_spawn"), failures)
 	_run_test("map_connectivity", Callable(self, "_test_map_connectivity"), failures)
+	_run_test("preset_map_loader_builds_cities", Callable(self, "_test_preset_map_loader_builds_cities"), failures)
+	_run_test("preset_map_spawn_sets_cover_supported_faction_counts", Callable(self, "_test_preset_map_spawn_sets_cover_supported_faction_counts"), failures)
+	_run_test("preset_map_is_connected", Callable(self, "_test_preset_map_is_connected"), failures)
+	_run_test("project_main_scene_still_prototype_main", Callable(self, "_test_project_main_scene_still_prototype_main"), failures)
 	_run_test("legacy_main_chain_removed", Callable(self, "_test_legacy_main_chain_removed"), failures)
 
 	if failures.is_empty():
@@ -424,6 +430,90 @@ func _test_map_connectivity() -> bool:
 			queue.append(neighbor_id)
 
 	return visited.size() == cities.size()
+
+
+## 验证预设地图 loader 能构建出第一阶段所需规模的运行时城市数组。
+##
+## 调用场景：预设地图系统第一阶段回归测试。
+## 主要逻辑：从第一张预设图定义构建一局默认 5 方地图，检查返回数组非空、城市数落在设计范围内，且元素为可用城市状态。
+func _test_preset_map_loader_builds_cities() -> bool:
+	var loader = PrototypePresetMapLoaderRef.new()
+	var definition = PrototypePresetMapDefinitionRef.new()
+	var random := RandomNumberGenerator.new()
+	random.seed = 42
+	var cities: Array = loader.build_map({
+		"player_count": 5
+	}, Vector2(1400.0, 2400.0), random)
+	if cities.is_empty():
+		return false
+	if cities.size() < 12 or cities.size() > 18:
+		return false
+	return cities[0] is PrototypeCityStateRef
+
+
+## 验证第一张预设图为 2 至 5 方都提供了合法出生配置。
+##
+## 调用场景：预设地图定义完整性回归测试。
+## 主要逻辑：读取定义中的 `spawn_sets_by_faction_count`，确认每种方数都有玩家出生点、正确数量的 AI 出生点，且同一配置无重复城市。
+func _test_preset_map_spawn_sets_cover_supported_faction_counts() -> bool:
+	var definition = PrototypePresetMapDefinitionRef.new()
+	var spawn_sets: Dictionary = definition.get_spawn_sets_by_faction_count()
+	for faction_count: int in [2, 3, 4, 5]:
+		if not spawn_sets.has(faction_count):
+			return false
+		var spawn_set: Dictionary = spawn_sets[faction_count]
+		var player_city_id: int = int(spawn_set.get("player_city_id", -1))
+		var ai_city_ids: Array = spawn_set.get("ai_city_ids", [])
+		if player_city_id < 0:
+			return false
+		if ai_city_ids.size() != faction_count - 1:
+			return false
+		var used_ids: Dictionary = {player_city_id: true}
+		for ai_city_id_variant in ai_city_ids:
+			var ai_city_id: int = int(ai_city_id_variant)
+			if used_ids.has(ai_city_id):
+				return false
+			used_ids[ai_city_id] = true
+	return true
+
+
+## 验证第一张预设图构建后的道路网络整体连通。
+##
+## 调用场景：预设地图结构回归测试。
+## 主要逻辑：使用 loader 构建一局默认地图，再通过 BFS 验证任意城市都可达，避免出现孤岛。
+func _test_preset_map_is_connected() -> bool:
+	var loader = PrototypePresetMapLoaderRef.new()
+	var definition = PrototypePresetMapDefinitionRef.new()
+	var random := RandomNumberGenerator.new()
+	random.seed = 99
+	var cities: Array = loader.build_map({
+		"player_count": 5
+	}, Vector2(1400.0, 2400.0), random)
+	if cities.is_empty():
+		return false
+	var visited: Dictionary = {0: true}
+	var queue: Array[int] = [0]
+	while not queue.is_empty():
+		var current_id: int = queue.pop_front()
+		var city = cities[current_id]
+		for neighbor_id: int in city.neighbors:
+			if visited.has(neighbor_id):
+				continue
+			visited[neighbor_id] = true
+			queue.append(neighbor_id)
+	return visited.size() == cities.size()
+
+
+## 验证项目运行入口仍然指向 prototype 主场景。
+##
+## 调用场景：运行链路守护测试。
+## 主要逻辑：读取 `project.godot` 文本，确认 `run/main_scene` 没有被错误改离当前唯一生效入口。
+func _test_project_main_scene_still_prototype_main() -> bool:
+	var file := FileAccess.open("res://project.godot", FileAccess.READ)
+	if file == null:
+		return false
+	var contents: String = file.get_as_text()
+	return contents.contains('run/main_scene="res://scenes/main/prototype_main.tscn"')
 
 
 ## 验证已确认淘汰的 legacy main chain 文件已全部移除。
