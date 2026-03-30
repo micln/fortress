@@ -11,7 +11,9 @@
 - `prototype_city_state.gd`：容量上限、产能累计、防御门槛、升级成本
 - `prototype_enemy_ai_service.gd`：基于推荐兵力与城市属性的攻击决策、无战可打时的养城升级
 - `prototype_map_generator.gd`：地图连通性、开局势力分配、城市属性生成
-- `prototype_main_game.gd`：通过项目启动验证确保场景装配、大地图拖拽、升级按钮和出兵预估无语法错误
+- `prototype_preset_map_loader.gd`：预设地图模板装载、出生配置覆盖、邻接完整性、坐标越界/重叠校验、错误显式暴露、战略节点类型装配与数值加成
+- `prototype_city_state.gd`：除基础城市状态外，还需覆盖战略节点类型字段与展示名辅助函数
+- `prototype_main_game.gd`：通过项目启动验证确保场景装配、大地图拖拽、升级按钮、出兵预估与战略节点最小提示无语法错误
 
 ## 执行
 

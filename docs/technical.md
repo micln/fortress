@@ -101,8 +101,13 @@
 
 - 第一阶段预设地图使用固定 design canvas 坐标，而不是直接把最终世界坐标写死在模板里。
 - `prototype_preset_map_loader.gd` 会按当前 `_map_world_size` 把 design canvas 坐标映射到运行时世界坐标，保证同一张地图模板可适配当前大地图尺寸。
+- loader 在真正生成 `PrototypeCityState` 之前，会校验映射后的城市坐标是否越界，以及城市之间是否低于最小安全间距；该间距阈值会随 design canvas 到运行时世界尺寸的缩放比例同步换算，避免小地图尺寸下误判严重重叠。
 - 第一张预设地图定义了 `2` 至 `5` 方的出生配置，主场景继续复用当前开始面板中的总方数选择。
 - 未被当前方数使用的出生城会在该局中回落为中立城市，避免第一阶段为了预设地图破坏现有开局 UI。
+- 若模板校验失败，loader 会记录最近一次错误信息；主场景不会静默继续空地图，而是直接显示装载失败提示。
+- 预设地图城市现已支持 `node_type` 字段，第一版包含 `normal / pass / hub / heartland` 四类；loader 会在装配 `PrototypeCityState` 时保留该字段。
+- 第一版静态战略节点效果为：`pass -> defense +1`、`hub -> production_rate +0.2`、`heartland -> initial_soldiers +2`。
+- 表现层只负责展示最小节点提示：城市属性行会追加“关口 / 枢纽 / 腹地”标签，玩家首次选中己方战略节点时，顶部提示会补充一条简短策略说明。
 
 ## 大地图与输入实现
 

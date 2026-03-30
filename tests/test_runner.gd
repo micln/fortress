@@ -43,6 +43,14 @@ func _initialize() -> void:
 	_run_test("preset_map_loader_builds_cities", Callable(self, "_test_preset_map_loader_builds_cities"), failures)
 	_run_test("preset_map_spawn_sets_cover_supported_faction_counts", Callable(self, "_test_preset_map_spawn_sets_cover_supported_faction_counts"), failures)
 	_run_test("preset_map_is_connected", Callable(self, "_test_preset_map_is_connected"), failures)
+	_run_test("preset_map_neighbors_are_symmetric_and_valid", Callable(self, "_test_preset_map_neighbors_are_symmetric_and_valid"), failures)
+	_run_test("preset_map_positions_stay_in_world_bounds_and_do_not_overlap", Callable(self, "_test_preset_map_positions_stay_in_world_bounds_and_do_not_overlap"), failures)
+	_run_test("preset_map_still_builds_on_smaller_world_size", Callable(self, "_test_preset_map_still_builds_on_smaller_world_size"), failures)
+	_run_test("preset_map_loader_reports_validation_error", Callable(self, "_test_preset_map_loader_reports_validation_error"), failures)
+	_run_test("preset_map_assigns_strategic_node_types", Callable(self, "_test_preset_map_assigns_strategic_node_types"), failures)
+	_run_test("strategic_pass_increases_defense", Callable(self, "_test_strategic_pass_increases_defense"), failures)
+	_run_test("strategic_hub_increases_production", Callable(self, "_test_strategic_hub_increases_production"), failures)
+	_run_test("strategic_heartland_increases_initial_soldiers", Callable(self, "_test_strategic_heartland_increases_initial_soldiers"), failures)
 	_run_test("project_main_scene_still_prototype_main", Callable(self, "_test_project_main_scene_still_prototype_main"), failures)
 	_run_test("legacy_main_chain_removed", Callable(self, "_test_legacy_main_chain_removed"), failures)
 
@@ -483,7 +491,6 @@ func _test_preset_map_spawn_sets_cover_supported_faction_counts() -> bool:
 ## 主要逻辑：使用 loader 构建一局默认地图，再通过 BFS 验证任意城市都可达，避免出现孤岛。
 func _test_preset_map_is_connected() -> bool:
 	var loader = PrototypePresetMapLoaderRef.new()
-	var definition = PrototypePresetMapDefinitionRef.new()
 	var random := RandomNumberGenerator.new()
 	random.seed = 99
 	var cities: Array = loader.build_map({
@@ -502,6 +509,173 @@ func _test_preset_map_is_connected() -> bool:
 			visited[neighbor_id] = true
 			queue.append(neighbor_id)
 	return visited.size() == cities.size()
+
+
+## 验证预设地图生成出的邻接关系既合法又保持双向对称。
+##
+## 调用场景：预设地图结构完整性回归测试。
+## 主要逻辑：读取运行时城市数组后，检查每条邻接边都指向存在城市，且 A 连到 B 时 B 也必须连回 A。
+func _test_preset_map_neighbors_are_symmetric_and_valid() -> bool:
+	var loader = PrototypePresetMapLoaderRef.new()
+	var random := RandomNumberGenerator.new()
+	random.seed = 7
+	var cities: Array = loader.build_map({
+		"player_count": 5
+	}, Vector2(1400.0, 2400.0), random)
+	if cities.is_empty():
+		return false
+
+	var city_ids: Dictionary = {}
+	for city in cities:
+		city_ids[city.city_id] = city
+
+	for city in cities:
+		for neighbor_id: int in city.neighbors:
+			if not city_ids.has(neighbor_id):
+				return false
+			var neighbor = city_ids[neighbor_id]
+			if not neighbor.neighbors.has(city.city_id):
+				return false
+	return true
+
+
+## 验证 design canvas 映射后的城市坐标不会越界，也不会出现严重重叠。
+##
+## 调用场景：预设地图坐标契约回归测试。
+## 主要逻辑：在常见运行时世界尺寸下构建地图，检查所有城市都落在世界边界内，
+## 且任意两城的直线距离都高于最小阈值，避免标签和点击区域大面积重叠。
+func _test_preset_map_positions_stay_in_world_bounds_and_do_not_overlap() -> bool:
+	var loader = PrototypePresetMapLoaderRef.new()
+	var random := RandomNumberGenerator.new()
+	random.seed = 11
+	var world_size := Vector2(1400.0, 2400.0)
+	var cities: Array = loader.build_map({
+		"player_count": 5
+	}, world_size, random)
+	if cities.is_empty():
+		return false
+
+	for city in cities:
+		if city.position.x < 0.0 or city.position.y < 0.0:
+			return false
+		if city.position.x > world_size.x or city.position.y > world_size.y:
+			return false
+
+	for index: int in range(cities.size()):
+		for other_index: int in range(index + 1, cities.size()):
+			if cities[index].position.distance_to(cities[other_index].position) < 110.0:
+				return false
+	return true
+
+
+## 验证同一张预设图在较小运行时世界尺寸下仍能成功装载。
+##
+## 调用场景：预设地图缩放兼容性回归测试。
+## 主要逻辑：把地图装配到明显小于默认值的世界尺寸，确认 loader 不会因为写死绝对距离阈值而误判模板非法。
+func _test_preset_map_still_builds_on_smaller_world_size() -> bool:
+	var loader = PrototypePresetMapLoaderRef.new()
+	var random := RandomNumberGenerator.new()
+	random.seed = 19
+	var cities: Array = loader.build_map({
+		"player_count": 5
+	}, Vector2(500.0, 900.0), random)
+	return not cities.is_empty()
+
+
+## 验证预设地图 loader 在配置非法时会显式暴露错误，而不是只返回空数组。
+##
+## 调用场景：预设地图错误处理回归测试。
+## 主要逻辑：传入不受支持的总方数，检查构建失败后除了返回空数组，还能读取明确错误信息。
+func _test_preset_map_loader_reports_validation_error() -> bool:
+	var loader = PrototypePresetMapLoaderRef.new()
+	var random := RandomNumberGenerator.new()
+	random.seed = 23
+	var cities: Array = loader.build_map({
+		"player_count": 6
+	}, Vector2(1400.0, 2400.0), random)
+	return cities.is_empty() and not String(loader.get_last_error_message()).is_empty()
+
+
+## 验证首张预设图已经给关键城市打上战略节点类型。
+##
+## 调用场景：Strategic Node Phase 2 结构回归测试。
+## 主要逻辑：直接读取预设图静态定义，确认至少存在一座关口、枢纽和腹地节点，避免标签设计只写在文档里未真正落地到数据层。
+func _test_preset_map_assigns_strategic_node_types() -> bool:
+	var definition = PrototypePresetMapDefinitionRef.new()
+	var city_definitions: Array[Dictionary] = definition.get_city_definitions()
+	var node_types: Dictionary = {}
+	for city_definition: Dictionary in city_definitions:
+		var node_type: String = String(city_definition.get("node_type", ""))
+		if not node_type.is_empty():
+			node_types[node_type] = true
+	return node_types.has("pass") and node_types.has("hub") and node_types.has("heartland")
+
+
+## 验证关口节点在运行时会获得额外防御加成。
+##
+## 调用场景：Strategic Node Phase 2 数值效果回归测试。
+## 主要逻辑：对比模板定义与 loader 产出的同名城市，确认标记为关口的城市运行时防御值高于模板基础值。
+func _test_strategic_pass_increases_defense() -> bool:
+	var definition = PrototypePresetMapDefinitionRef.new()
+	var city_definition: Dictionary = _find_city_definition_by_name(definition.get_city_definitions(), "长安")
+	if String(city_definition.get("node_type", "")) != "pass":
+		return false
+	var city = _build_city_by_name("长安")
+	return city != null and city.defense > int(city_definition.get("defense", 0))
+
+
+## 验证枢纽节点在运行时会获得额外产能加成。
+##
+## 调用场景：Strategic Node Phase 2 数值效果回归测试。
+## 主要逻辑：对比模板定义与 loader 产出的同名城市，确认标记为枢纽的城市运行时产能高于模板基础值。
+func _test_strategic_hub_increases_production() -> bool:
+	var definition = PrototypePresetMapDefinitionRef.new()
+	var city_definition: Dictionary = _find_city_definition_by_name(definition.get_city_definitions(), "洛阳")
+	if String(city_definition.get("node_type", "")) != "hub":
+		return false
+	var city = _build_city_by_name("洛阳")
+	return city != null and city.production_rate > float(city_definition.get("production_rate", 0.0))
+
+
+## 验证腹地节点在运行时会获得额外初始兵力加成。
+##
+## 调用场景：Strategic Node Phase 2 数值效果回归测试。
+## 主要逻辑：对比模板定义与 loader 产出的同名城市，确认标记为腹地的城市运行时初始兵力高于模板基础值。
+func _test_strategic_heartland_increases_initial_soldiers() -> bool:
+	var definition = PrototypePresetMapDefinitionRef.new()
+	var city_definition: Dictionary = _find_city_definition_by_name(definition.get_city_definitions(), "成都")
+	if String(city_definition.get("node_type", "")) != "heartland":
+		return false
+	var city = _build_city_by_name("成都")
+	return city != null and city.soldiers > int(city_definition.get("initial_soldiers", 0))
+
+
+## 按城市名在静态定义列表里查找对应定义。
+##
+## 调用场景：预设地图相关测试需要读取模板基础数值时。
+## 主要逻辑：线性遍历城市定义，找到名称匹配的那一项后返回；若未找到则返回空字典供调用方判空。
+func _find_city_definition_by_name(city_definitions: Array[Dictionary], city_name: String) -> Dictionary:
+	for city_definition: Dictionary in city_definitions:
+		if String(city_definition.get("name", "")) == city_name:
+			return city_definition
+	return {}
+
+
+## 构建一局默认预设地图并返回指定名称的运行时城市状态。
+##
+## 调用场景：战略节点测试需要对比静态模板与运行时装配结果时。
+## 主要逻辑：调用真实 loader 生成城市数组，再按城市名定位目标，避免测试直接依赖私有装配细节。
+func _build_city_by_name(city_name: String) -> Variant:
+	var loader = PrototypePresetMapLoaderRef.new()
+	var random := RandomNumberGenerator.new()
+	random.seed = 31
+	var cities: Array = loader.build_map({
+		"player_count": 5
+	}, Vector2(1400.0, 2400.0), random)
+	for city in cities:
+		if city.name == city_name:
+			return city
+	return null
 
 
 ## 验证项目运行入口仍然指向 prototype 主场景。

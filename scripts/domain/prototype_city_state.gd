@@ -2,6 +2,10 @@ class_name PrototypeCityState
 extends RefCounted
 
 const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
+const NODE_TYPE_NORMAL: String = "normal"
+const NODE_TYPE_PASS: String = "pass"
+const NODE_TYPE_HUB: String = "hub"
+const NODE_TYPE_HEARTLAND: String = "heartland"
 const LEVEL_CAPACITY: Dictionary = {
 	1: 20,
 	2: 35,
@@ -36,6 +40,7 @@ var production_rate: float
 var max_soldiers: int
 var soldiers: int
 var neighbors: Array[int]
+var node_type: String = NODE_TYPE_NORMAL
 var _production_progress: float = 0.0
 
 
@@ -54,7 +59,8 @@ func _init(
 	p_soldiers: int,
 	p_neighbors: Array[int],
 	p_defense: int = 1,
-	p_production_rate: float = 1.0
+	p_production_rate: float = 1.0,
+	p_node_type: String = NODE_TYPE_NORMAL
 ) -> void:
 	city_id = p_city_id
 	name = p_name
@@ -66,7 +72,24 @@ func _init(
 	max_soldiers = p_max_soldiers
 	soldiers = p_soldiers
 	neighbors = p_neighbors.duplicate()
+	node_type = p_node_type
 	_production_progress = 0.0
+
+
+## 返回当前城市节点类型对应的中文展示名。
+##
+## 调用场景：表现层需要显示战略节点标签时。
+## 主要逻辑：把运行时使用的英文节点类型常量统一映射成中文短标签，未知值回落为“普通”。
+func get_node_type_display_name() -> String:
+	match node_type:
+		NODE_TYPE_PASS:
+			return "关口"
+		NODE_TYPE_HUB:
+			return "枢纽"
+		NODE_TYPE_HEARTLAND:
+			return "腹地"
+		_:
+			return "普通"
 
 
 ## 判断当前城市是否已被某一阵营占领。

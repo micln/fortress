@@ -56,8 +56,19 @@ func sync_from_state(city, selected: bool, screen_position: Vector2) -> void:
 	position = screen_position
 	name_label.text = city.name
 	soldier_label.text = "%d/%d" % [city.soldiers, city.max_soldiers]
-	attr_label.text = "Lv.%d  防%d  产%.1f" % [city.level, city.defense, city.production_rate]
+	attr_label.text = _build_attr_text(city)
 	queue_redraw()
+
+
+## 组装城市属性行文本，并在有战略节点时补充简短标签。
+##
+## 调用场景：城市节点每次根据运行时状态刷新文字时。
+## 主要逻辑：先保留等级、防御、产能三项核心信息，再在非普通节点后面追加中文节点标签，避免挤占太多竖屏空间。
+func _build_attr_text(city) -> String:
+	var attr_text: String = "Lv.%d  防%d  产%.1f" % [city.level, city.defense, city.production_rate]
+	if String(city.node_type) == "normal":
+		return attr_text
+	return "%s  %s" % [attr_text, city.get_node_type_display_name()]
 
 
 ## 绘制更规整的中式城池图标：主体、城门、角楼与旗帜。

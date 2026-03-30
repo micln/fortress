@@ -616,6 +616,13 @@ func _start_new_match() -> void:
 		"ai_difficulty": _ai_difficulty,
 		"ai_style": _ai_style
 	}, _map_world_size, _random)
+	if _cities.is_empty():
+		var error_message: String = _preset_map_loader.get_last_error_message()
+		status_label.text = "地图装载失败，请检查预设地图配置。"
+		hint_label.text = error_message if not error_message.is_empty() else "预设地图 loader 未返回可用城市数据。"
+		push_error("预设地图装载失败：%s" % hint_label.text)
+		_refresh_view()
+		return
 	_center_map_offset()
 	_spawn_city_views()
 	status_label.text = "阅读说明后点击“开始游戏”。"
@@ -676,7 +683,7 @@ func _on_city_pressed(city_id: int) -> void:
 			return
 		_selected_city_id = city_id
 		status_label.text = "已选中 %s。现在点击目标城市，进入出兵数量选择。" % clicked_city.name
-		hint_label.text = "点己方城市可跨图运兵，点敌方或中立城市需要道路相邻；也可以直接在底部升级。"
+		hint_label.text = _build_selected_city_hint(clicked_city)
 		_play_sfx(_select_sfx_stream)
 		_refresh_view()
 		return
@@ -696,6 +703,34 @@ func _on_city_pressed(city_id: int) -> void:
 		return
 
 	_open_order_dialog(_selected_city_id, city_id, false)
+
+
+## 根据城市节点类型生成一条简短的战略提示文案。
+##
+## 调用场景：玩家首次选中己方城市，需要在顶部提示里补充节点价值时。
+## 主要逻辑：普通节点不额外提示；关口、枢纽、腹地分别返回对应的轻量策略说明，避免把规则判断写死在多个 UI 分支里。
+func _get_city_node_type_hint(city) -> String:
+	match String(city.node_type):
+		"pass":
+			return "该城是关口，防御更高，适合卡住要道。"
+		"hub":
+			return "该城是枢纽，产能更高，值得优先争夺。"
+		"heartland":
+			return "该城是腹地，初始兵力更高，适合作为后方中转。"
+		_:
+			return ""
+
+
+## 组装玩家选中己方城市后的顶部提示文案。
+##
+## 调用场景：首次选中己方城市时刷新 `hint_label`。
+## 主要逻辑：先输出通用操作提示，再按节点类型决定是否拼接额外战略说明，避免普通节点出现多余空格或空句子。
+func _build_selected_city_hint(city) -> String:
+	var base_hint: String = "点己方城市可跨图运兵，点敌方或中立城市需要道路相邻；也可以直接在底部升级。"
+	var node_hint: String = _get_city_node_type_hint(city)
+	if node_hint.is_empty():
+		return base_hint
+	return "%s %s" % [base_hint, node_hint]
 
 
 ## 根据玩家确认的数量执行一次运兵下单。
