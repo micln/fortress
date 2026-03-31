@@ -6,8 +6,14 @@ const PrototypeBattleServiceRef = preload("res://scripts/application/prototype_b
 const PrototypeEnemyAiServiceRef = preload("res://scripts/application/prototype_enemy_ai_service.gd")
 const PrototypeCityViewRef = preload("res://scripts/presentation/prototype_city_view.gd")
 const UI_FONT: Font = preload("res://assets/fonts/NotoSansSC-Regular.otf")
-const MAP_WORLD_SCALE: Vector2 = Vector2(1.75, 1.6)
-const MAP_WORLD_PADDING: Vector2 = Vector2(320.0, 480.0)
+const MOBILE_MAP_WORLD_SCALE: Vector2 = Vector2(2.15, 2.0)
+const MOBILE_MAP_WORLD_PADDING: Vector2 = Vector2(460.0, 680.0)
+const DESKTOP_MAP_WORLD_SCALE: Vector2 = Vector2(1.2, 1.25)
+const DESKTOP_MAP_WORLD_PADDING: Vector2 = Vector2(160.0, 220.0)
+const MAP_WORLD_MIN_SIZE: Vector2 = Vector2(1200.0, 2200.0)
+const MAP_ZOOM_MIN: float = 0.75
+const MAP_ZOOM_MAX: float = 1.8
+const MAP_ZOOM_STEP: float = 0.1
 const DESKTOP_DEFAULT_LANDSCAPE_SIZE: Vector2i = Vector2i(1280, 720)
 const MARCH_SPEED: float = 180.0
 const UNIT_RADIUS: float = 16.0
@@ -63,12 +69,16 @@ var _victory_sfx_stream: AudioStreamWAV
 var _defeat_sfx_stream: AudioStreamWAV
 var _map_world_size: Vector2 = Vector2.ZERO
 var _map_offset: Vector2 = Vector2.ZERO
+var _map_zoom: float = 1.0
 var _is_dragging_map: bool = false
 var _drag_candidate_active: bool = false
 var _drag_pointer_kind: String = ""
 var _drag_pointer_index: int = -1
 var _drag_press_position: Vector2 = Vector2.ZERO
 var _drag_last_position: Vector2 = Vector2.ZERO
+var _active_touch_points: Dictionary = {}
+var _is_pinching_map: bool = false
+var _pinch_last_distance: float = 0.0
 var _skip_selection_cancel_guard_count: int = 0
 var _last_window_resize_frame: int = -1
 
@@ -571,18 +581,19 @@ func _draw() -> void:
 			var from_position: Vector2 = _get_screen_position(city.position)
 			var target_position: Vector2 = _get_screen_position(target.position)
 			var line_color := Color("48576a")
-			var line_width: float = 6.0
+			var line_width: float = max(3.0, 6.0 * _map_zoom)
 			if city.city_id == _selected_city_id or target.city_id == _selected_city_id:
 				line_color = Color("f6d365")
-				line_width = 10.0
+				line_width = max(5.0, 10.0 * _map_zoom)
 
 			draw_line(from_position, target_position, line_color, line_width, true)
 
 	for unit in _marching_units:
 		var unit_position: Vector2 = _get_screen_position(_get_marching_unit_position(unit))
 		var unit_color: Color = PrototypeCityOwnerRef.get_color(int(unit["owner"]))
-		draw_circle(unit_position, UNIT_RADIUS, unit_color)
-		draw_circle(unit_position, UNIT_RADIUS, Color.WHITE, false, 3.0)
+		var unit_radius: float = max(9.0, UNIT_RADIUS * _map_zoom)
+		draw_circle(unit_position, unit_radius, unit_color)
+		draw_circle(unit_position, unit_radius, Color.WHITE, false, max(2.0, 3.0 * _map_zoom))
 		var font_size: int = 18
 		var text: String = str(int(unit["count"]))
 		var text_size: Vector2 = UI_FONT.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
@@ -610,6 +621,10 @@ func _start_new_match() -> void:
 	order_dialog_layer.visible = false
 	_apply_ai_profile()
 	var viewport_size: Vector2 = get_viewport_rect().size
+	_map_zoom = 1.0
+	_active_touch_points.clear()
+	_end_pinch_zoom()
+	_cancel_map_drag_state()
 	_map_world_size = _get_target_map_world_size(viewport_size)
 	_cities = _preset_map_loader.build_map({
 		"player_count": _player_count,
@@ -626,7 +641,7 @@ func _start_new_match() -> void:
 	_center_map_offset()
 	_spawn_city_views()
 	status_label.text = "阅读说明后点击“开始游戏”。"
-	hint_label.text = "蓝色是你，其他颜色是电脑势力，灰色是中立城市不产兵；地图可拖拽浏览。"
+	hint_label.text = "蓝色是你，其他颜色是电脑势力，灰色是中立城市不产兵；地图可拖拽浏览，桌面滚轮/手机双指可缩放。"
 	_refresh_view()
 
 
@@ -1339,7 +1354,7 @@ func _get_marching_unit_position(unit: Dictionary) -> Vector2:
 ## 调用场景：绘制道路与行军、摆放城市节点、定位升级面板时。
 ## 主要逻辑：统一叠加当前地图偏移，避免战场元素各自维护一套平移结果。
 func _get_screen_position(world_position: Vector2) -> Vector2:
-	return world_position + _map_offset
+	return _get_screen_delta(world_position) + _map_offset
 
 
 ## 把当前屏幕坐标还原为地图世界坐标。
@@ -1347,7 +1362,15 @@ func _get_screen_position(world_position: Vector2) -> Vector2:
 ## 调用场景：点击命中测试、空白取消判定、拖拽后继续选城时。
 ## 主要逻辑：用屏幕点减去地图偏移，确保点击判定永远落在同一套世界坐标系里。
 func _get_world_position(screen_position: Vector2) -> Vector2:
-	return screen_position - _map_offset
+	return (screen_position - _map_offset) / _map_zoom
+
+
+## 把世界坐标系中的距离向量转换为当前屏幕距离。
+##
+## 调用场景：世界长度映射到屏幕长度时，例如背景色斑尺寸、道路宽度缩放等。
+## 主要逻辑：只处理缩放，不叠加平移偏移，避免把向量计算误当成坐标计算。
+func _get_screen_delta(world_delta: Vector2) -> Vector2:
+	return world_delta * _map_zoom
 
 
 ## 把大地图初始平移到屏幕中央附近，避免开局直接贴在左上角。
@@ -1356,7 +1379,7 @@ func _get_world_position(screen_position: Vector2) -> Vector2:
 ## 主要逻辑：按世界尺寸和视口尺寸计算中心偏移，再经过边界钳制得到合法初始位置。
 func _center_map_offset() -> void:
 	var viewport_size: Vector2 = get_viewport_rect().size
-	_map_offset = (viewport_size - _map_world_size) * 0.5
+	_map_offset = (viewport_size - _get_scaled_map_world_size()) * 0.5
 	_map_offset = _clamp_map_offset(_map_offset)
 
 
@@ -1365,10 +1388,25 @@ func _center_map_offset() -> void:
 ## 调用场景：新开一局初始化地图尺寸、窗口尺寸变化时扩展地图尺寸。
 ## 主要逻辑：地图至少比视口更大（固定留白 + 比例放大），确保拖拽浏览空间和无黑边背景覆盖。
 func _get_target_map_world_size(viewport_size: Vector2) -> Vector2:
+	var world_scale: Vector2 = DESKTOP_MAP_WORLD_SCALE
+	var world_padding: Vector2 = DESKTOP_MAP_WORLD_PADDING
+	if _is_mobile_touch_runtime():
+		world_scale = MOBILE_MAP_WORLD_SCALE
+		world_padding = MOBILE_MAP_WORLD_PADDING
 	return Vector2(
-		max(viewport_size.x + MAP_WORLD_PADDING.x, viewport_size.x * MAP_WORLD_SCALE.x),
-		max(viewport_size.y + MAP_WORLD_PADDING.y, viewport_size.y * MAP_WORLD_SCALE.y)
+		max(MAP_WORLD_MIN_SIZE.x, max(viewport_size.x + world_padding.x, viewport_size.x * world_scale.x)),
+		max(MAP_WORLD_MIN_SIZE.y, max(viewport_size.y + world_padding.y, viewport_size.y * world_scale.y))
 	)
+
+
+## 判断当前是否应采用移动端地图尺度策略。
+##
+## 调用场景：计算地图目标世界尺寸时区分移动端和桌面端参数。
+## 主要逻辑：触屏且非桌面运行时视为移动端，避免在桌面触屏设备上误用手机尺度。
+func _is_mobile_touch_runtime() -> bool:
+	if not DisplayServer.is_touchscreen_available():
+		return false
+	return not _is_desktop_runtime()
 
 
 ## 对地图偏移做边界钳制，防止玩家把整个战场拖出屏幕。
@@ -1377,12 +1415,21 @@ func _get_target_map_world_size(viewport_size: Vector2) -> Vector2:
 ## 主要逻辑：限制 X/Y 偏移范围，让世界矩形始终覆盖住整个视口。
 func _clamp_map_offset(offset: Vector2) -> Vector2:
 	var viewport_size: Vector2 = get_viewport_rect().size
-	var min_offset_x: float = min(0.0, viewport_size.x - _map_world_size.x)
-	var min_offset_y: float = min(0.0, viewport_size.y - _map_world_size.y)
+	var scaled_map_size: Vector2 = _get_scaled_map_world_size()
+	var min_offset_x: float = min(0.0, viewport_size.x - scaled_map_size.x)
+	var min_offset_y: float = min(0.0, viewport_size.y - scaled_map_size.y)
 	return Vector2(
 		clamp(offset.x, min_offset_x, 0.0),
 		clamp(offset.y, min_offset_y, 0.0)
 	)
+
+
+## 返回当前缩放后的地图世界尺寸。
+##
+## 调用场景：地图边界钳制、背景绘制、居中偏移计算。
+## 主要逻辑：把逻辑世界尺寸乘以当前缩放倍率，得到真实占据的屏幕尺寸。
+func _get_scaled_map_world_size() -> Vector2:
+	return _map_world_size * _map_zoom
 
 
 ## 更新地图偏移并同步所有依赖屏幕坐标的表现节点。
@@ -1393,6 +1440,20 @@ func _set_map_offset(offset: Vector2) -> void:
 	_map_offset = _clamp_map_offset(offset)
 	if is_node_ready():
 		_refresh_view()
+
+
+## 按指定锚点调整地图缩放倍率，并保持锚点下的世界坐标不跳动。
+##
+## 调用场景：桌面滚轮缩放、移动端双指缩放。
+## 主要逻辑：先记录锚点对应的旧世界坐标，再更新缩放倍率并反算偏移，最后统一走边界钳制。
+func _set_map_zoom(next_zoom: float, anchor_screen_position: Vector2) -> void:
+	var clamped_zoom: float = clamp(next_zoom, MAP_ZOOM_MIN, MAP_ZOOM_MAX)
+	if is_equal_approx(clamped_zoom, _map_zoom):
+		return
+	var world_anchor_before_zoom: Vector2 = _get_world_position(anchor_screen_position)
+	_map_zoom = clamped_zoom
+	var next_offset: Vector2 = anchor_screen_position - _get_screen_delta(world_anchor_before_zoom)
+	_set_map_offset(next_offset)
 
 
 ## 根据输入位置判断当前是否允许开始拖拽地图。
@@ -1658,7 +1719,11 @@ func _is_gameplay_paused() -> bool:
 func _input(event: InputEvent) -> void:
 	if _game_over or not _game_started or order_dialog_layer.visible or overlay_layer.visible:
 		return
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+	if event is InputEventMouseButton:
+		if _handle_mouse_wheel_zoom(event):
+			return
+		if event.button_index != MOUSE_BUTTON_LEFT:
+			return
 		_log_input_debug("mouse_button", {
 			"pressed": event.pressed,
 			"position": event.position,
@@ -1747,6 +1812,18 @@ func _handle_mouse_motion_input(event: InputEventMouseMotion) -> void:
 ## 主要逻辑：触摸开始时记录拖拽候选；触摸结束时若本次已经拖拽过则忽略，
 ## 未拖拽则把点击语义留给城市节点或 `_unhandled_input()` 的空白取消逻辑。
 func _handle_touch_drag_input(event: InputEventScreenTouch) -> void:
+	_update_active_touch_point(event.index, event.position, event.pressed)
+	if _active_touch_points.size() >= 2:
+		if event.pressed:
+			_begin_pinch_zoom()
+		if _finish_map_drag("touch", event.index):
+			get_viewport().set_input_as_handled()
+		return
+	if _is_pinching_map and _active_touch_points.size() < 2:
+		_end_pinch_zoom()
+		get_viewport().set_input_as_handled()
+		return
+
 	if event.pressed:
 		if _skip_selection_cancel_guard_count > 0:
 			_log_input_debug("clear_cancel_guard_on_touch_press", {
@@ -1774,10 +1851,108 @@ func _handle_touch_drag_input(event: InputEventScreenTouch) -> void:
 func _handle_screen_drag_input(event: InputEventScreenDrag) -> void:
 	if _manual_paused:
 		return
+	if _active_touch_points.has(event.index):
+		_active_touch_points[event.index] = event.position
+	if _active_touch_points.size() >= 2 and _update_pinch_zoom():
+		get_viewport().set_input_as_handled()
+		return
 	if _drag_pointer_kind != "touch" or _drag_pointer_index != event.index:
 		return
 	if _update_map_drag(event.position):
 		get_viewport().set_input_as_handled()
+
+
+## 处理桌面端滚轮缩放，便于快速拉近或拉远战场。
+##
+## 调用场景：`_input()` 收到鼠标按键事件时优先调用。
+## 主要逻辑：只消费滚轮上/下事件；以鼠标当前位置为缩放锚点，确保观察焦点不跳动。
+func _handle_mouse_wheel_zoom(event: InputEventMouseButton) -> bool:
+	if _manual_paused or not event.pressed:
+		return false
+	if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+		_set_map_zoom(_map_zoom + MAP_ZOOM_STEP, event.position)
+		get_viewport().set_input_as_handled()
+		return true
+	if event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+		_set_map_zoom(_map_zoom - MAP_ZOOM_STEP, event.position)
+		get_viewport().set_input_as_handled()
+		return true
+	return false
+
+
+## 记录或清理当前手指坐标，供双指缩放手势识别使用。
+##
+## 调用场景：触摸按下/抬起事件进入 `_handle_touch_drag_input()` 时。
+## 主要逻辑：按下时写入手指位置，抬起时从活动手指表删除，始终保留最新有效触点集合。
+func _update_active_touch_point(touch_index: int, position: Vector2, pressed: bool) -> void:
+	if pressed:
+		_active_touch_points[touch_index] = position
+		return
+	_active_touch_points.erase(touch_index)
+
+
+## 启动一次双指缩放手势跟踪。
+##
+## 调用场景：检测到第二根手指按下且活动触点数量达到 2 时。
+## 主要逻辑：记录当前双指距离作为后续增量缩放基准，并打断单指拖拽状态避免手势冲突。
+func _begin_pinch_zoom() -> void:
+	if _active_touch_points.size() < 2:
+		return
+	var touch_pair: Array[Vector2] = _get_first_two_touch_positions()
+	_pinch_last_distance = touch_pair[0].distance_to(touch_pair[1])
+	_is_pinching_map = _pinch_last_distance > 0.0
+	if _is_pinching_map:
+		_cancel_map_drag_state()
+
+
+## 在双指手势过程中持续更新地图缩放倍率。
+##
+## 调用场景：`_handle_screen_drag_input()` 收到活动手指移动事件时。
+## 主要逻辑：使用“当前双指距离 / 上一帧双指距离”作为增量倍率，并以双指中心点作为缩放锚点。
+func _update_pinch_zoom() -> bool:
+	if not _is_pinching_map or _active_touch_points.size() < 2:
+		return false
+	var touch_pair: Array[Vector2] = _get_first_two_touch_positions()
+	var current_distance: float = touch_pair[0].distance_to(touch_pair[1])
+	if current_distance <= 0.0 or _pinch_last_distance <= 0.0:
+		_pinch_last_distance = current_distance
+		return false
+	var ratio: float = current_distance / _pinch_last_distance
+	_pinch_last_distance = current_distance
+	var center: Vector2 = (touch_pair[0] + touch_pair[1]) * 0.5
+	_set_map_zoom(_map_zoom * ratio, center)
+	return true
+
+
+## 结束当前双指缩放手势，重置临时状态。
+##
+## 调用场景：活动触点数量从 2 降到 1 或 0 时。
+## 主要逻辑：清空缩放过程中的距离缓存与状态位，避免下一次双指手势沿用旧值。
+func _end_pinch_zoom() -> void:
+	_is_pinching_map = false
+	_pinch_last_distance = 0.0
+
+
+## 从活动触点集合中取前两根手指坐标，供双指缩放计算使用。
+##
+## 调用场景：开始或更新双指缩放手势时。
+## 主要逻辑：稳定返回两个触点位置；若触点不足则返回空数组。
+func _get_first_two_touch_positions() -> Array[Vector2]:
+	var keys: Array = _active_touch_points.keys()
+	if keys.size() < 2:
+		return []
+	return [Vector2(_active_touch_points[keys[0]]), Vector2(_active_touch_points[keys[1]])]
+
+
+## 清理地图拖拽候选与拖拽进行中的全部临时状态。
+##
+## 调用场景：切换到双指缩放手势时。
+## 主要逻辑：统一关闭拖拽态，避免双指缩放期间残留的单指拖拽状态继续生效。
+func _cancel_map_drag_state() -> void:
+	_is_dragging_map = false
+	_drag_candidate_active = false
+	_drag_pointer_kind = ""
+	_drag_pointer_index = -1
 
 
 ## 处理一次释放事件对应的“空白取消选城”逻辑。
@@ -1988,7 +2163,7 @@ func _get_active_ai_owners() -> Array[int]:
 ## 调用场景：主场景每次重绘时最先执行。
 ## 主要逻辑：先铺一层草地底色，再绘制几块半透明土地色斑和草纹线条，让战场更像户外地表。
 func _draw_battlefield_background() -> void:
-	var world_rect := Rect2(_map_offset, _map_world_size)
+	var world_rect := Rect2(_map_offset, _get_scaled_map_world_size())
 	draw_rect(world_rect, Color(0.42, 0.58, 0.31))
 	var dirt_patches: Array[Rect2] = [
 		Rect2(Vector2(0.05, 0.08), Vector2(0.22, 0.08)),
@@ -1999,7 +2174,7 @@ func _draw_battlefield_background() -> void:
 	for patch in dirt_patches:
 		var patch_rect := Rect2(
 			_get_screen_position(Vector2(patch.position.x * _map_world_size.x, patch.position.y * _map_world_size.y)),
-			Vector2(patch.size.x * _map_world_size.x, patch.size.y * _map_world_size.y)
+			_get_screen_delta(Vector2(patch.size.x * _map_world_size.x, patch.size.y * _map_world_size.y))
 		)
 		draw_rect(patch_rect, Color(0.55, 0.46, 0.28, 0.32))
 	for band_index: int in range(10):
@@ -2009,7 +2184,7 @@ func _draw_battlefield_background() -> void:
 			_get_screen_position(Vector2(0.0, y)),
 			_get_screen_position(Vector2(_map_world_size.x, y + 18.0)),
 			Color(0.5, 0.66, 0.36, 0.18),
-			24.0,
+			max(12.0, 24.0 * _map_zoom),
 			true
 		)
 

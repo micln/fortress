@@ -14,7 +14,8 @@
 - `prototype_main_game.gd` 启动时会读取当前窗口尺寸，并写入 `Window.content_scale_size` 作为内容分辨率。
 - Web 平台仅在触屏设备上才会用 `DisplayServer.screen_get_scale()` 把窗口像素尺寸换算成逻辑尺寸，避免高 DPI 手机上 UI 与字体被额外缩小；桌面端保持像素尺寸以避免黑边。
 - 当窗口尺寸变化时（`size_changed` 与 `NOTIFICATION_WM_SIZE_CHANGED`），会再次同步 `content_scale_size`，实现动态分辨率。
-- 当窗口尺寸变化时，`prototype_main_game.gd` 还会按当前视口重新计算目标地图世界尺寸，并以“只扩不缩”的方式扩展 `_map_world_size`，保证背景覆盖范围始终大于可视区，避免桌面拉大窗口后出现黑边。
+- `prototype_main_game.gd` 会按当前运行环境使用不同地图尺度参数：移动端（触屏）默认把地图世界拉得更开，桌面端默认更紧凑，避免“手机太挤 / 桌面太散”。
+- 当窗口尺寸变化时，`prototype_main_game.gd` 会按当前视口重新计算目标地图世界尺寸，并以“只扩不缩”的方式扩展 `_map_world_size`，保证背景覆盖范围始终大于可视区，避免窗口变大后出现黑边。
 - 项目保持 `canvas_items + expand + fractional` 的拉伸策略，保证不同窗口宽高变化时画面可连续自适应。
 - `Overlay` 与 `OrderDialog` 弹窗使用锚点比例布局和最小尺寸约束，窗口变化时会同步调整位置与大小。
 - 顶部状态栏与底部操作栏会在窄屏下切换为更激进的移动端 HUD：顶部几乎贴边，只保留核心状态与精简后的对局摘要；底部则压成三枚小按钮，优先把战场可视面积让给地图。
@@ -114,9 +115,11 @@
 - `prototype_map_generator.gd` 生成的是地图世界坐标，不再假设坐标一定落在单屏视口内。
 - `prototype_preset_map_loader.gd` 输出的预设地图坐标也会落在同一套地图世界坐标系内，因此后续拖拽、点击命中和道路绘制逻辑无需重写。
 - `prototype_main_game.gd` 维护 `_map_offset`，统一负责 `world -> screen` 与 `screen -> world` 转换。
+- `prototype_main_game.gd` 还维护 `_map_zoom`，拖拽与点击命中都走同一套偏移+缩放换算，避免缩放后交互漂移。
 - 城市节点、道路、行军单位、浮动升级条都必须经过同一套偏移换算，避免拖拽后表现错位。
 - HUD、说明遮罩、出兵弹窗仍固定在 `CanvasLayer`，不随地图拖动。
 - 鼠标左键拖拽与单指拖动共用同一套阈值判定：按下先记录，移动超过阈值才视为拖拽；否则保留点击语义。
+- 桌面端滚轮可按鼠标位置缩放地图；触屏端双指缩放以双指中心为锚点，缩放时会自动打断单指拖拽候选，避免手势冲突。
 
 ## 重要实现约束
 
