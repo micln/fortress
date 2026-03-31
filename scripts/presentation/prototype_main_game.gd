@@ -1333,7 +1333,7 @@ func _resolve_marching_unit_arrival(unit: Dictionary) -> void:
 		if bool(unit["is_player_action"]):
 			hint_label.text = "行军抵达后才会真正结算战斗。"
 		else:
-				hint_label.text = "有电脑势力行军已经抵达，注意下一波道路动向。"
+			hint_label.text = "有电脑势力行军已经抵达，注意下一波道路动向。"
 
 	_refresh_view()
 	_check_game_over()
@@ -1939,6 +1939,7 @@ func _end_pinch_zoom() -> void:
 ## 主要逻辑：稳定返回两个触点位置；若触点不足则返回空数组。
 func _get_first_two_touch_positions() -> Array[Vector2]:
 	var keys: Array = _active_touch_points.keys()
+	keys.sort()
 	if keys.size() < 2:
 		return []
 	return [Vector2(_active_touch_points[keys[0]]), Vector2(_active_touch_points[keys[1]])]
