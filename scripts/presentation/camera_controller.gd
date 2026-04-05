@@ -47,7 +47,16 @@ func setup(
 ## 调用场景：新开一局时。
 func reset_for_new_match(target_world_size: Vector2) -> void:
 	map_world_size = target_world_size
-	map_zoom = 1.0
+	map_zoom = _calculate_fit_zoom()
+
+
+## 计算让地图完整显示在视口中的缩放值。
+func _calculate_fit_zoom() -> float:
+	var viewport_size: Vector2 = _get_viewport_size()
+	var fit_zoom_x: float = viewport_size.x / map_world_size.x
+	var fit_zoom_y: float = viewport_size.y / map_world_size.y
+	var fit_zoom: float = min(fit_zoom_x, fit_zoom_y)
+	return clamp(fit_zoom, MAP_ZOOM_MIN, MAP_ZOOM_MAX)
 
 
 ## 计算目标地图世界尺寸（公开方法）。
