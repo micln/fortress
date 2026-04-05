@@ -90,6 +90,14 @@
 - `scripts/presentation/prototype_city_view.gd`
   - 城市图标绘制、城市标签、点击区域、点击与拖拽手势区分
 
+背景与 marker 的当前实现约束：
+
+- 战场背景只在 `prototype_main_game.gd` 的 `_draw()` 中直接绘制，不新增独立背景节点；渲染顺序固定为主草地底层、不规则土地色块、分段草纹、极轻氛围块，始终压在道路、城市和行军单位之下。
+- 背景装饰层的单层 alpha 不超过 `0.22`，并且 patch/stripe 数据全部基于世界坐标和确定性常量，禁止在 `_draw()` 内随机生成或每帧抖动。
+- 背景不能使用高对比的封闭图形，避免被误认成可交互节点或障碍。
+- 城市 marker 默认使用短文本（`城/关/枢/腹`），emoji 只在显式开关打开时启用；这是为了规避当前字体链路下默认 emoji 的缺字风险。
+- emoji 显式开关支持 `ProjectSettings` 键 `fortress_war/ui/use_marker_emoji`，或环境变量 `FORTRESS_WAR_USE_MARKER_EMOJI=1`。
+
 ## 运行时数据流
 
 1. `prototype_main_game.gd` 在开局时调用 `prototype_preset_map_loader.gd` 生成城市数组
@@ -159,3 +167,16 @@
 ```bash
 HOME=/tmp XDG_DATA_HOME=/tmp godot --headless --path . -s res://tests/test_runner.gd
 ```
+- Web 冒烟检查命令：
+
+```bash
+scripts/tools/web_smoke_check.sh
+```
+
+手工验收重点：
+
+- 背景四层是否仍然位于道路、城市和行军单位之下
+- 装饰层是否保持低对比，并且单层 alpha 不超过 `0.22`
+- 是否存在会被误认成可交互节点或障碍的高对比封闭图形
+- 城市 marker 是否默认短文本、emoji 是否只在显式开关下开启
+- 若要抽检 emoji 路径，是否已开启 `fortress_war/ui/use_marker_emoji` 或 `FORTRESS_WAR_USE_MARKER_EMOJI=1`

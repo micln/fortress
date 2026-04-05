@@ -28,7 +28,8 @@
 - 战斗会在行军单位抵达目标城市时才结算
 - 同一帧多支队伍同时到达时，先结算进攻，再结算运兵
 - 提供程序生成的背景音乐与操作音效
-- 提供草地与土地风格的程序背景
+- 提供四层分层的程序背景：主草地底层、不规则土地色块、分段草纹和极轻氛围块；背景只在主场景 `_draw()` 中绘制，不新增独立背景节点，且始终位于道路、城市和行军单位之下
+- 城市 marker 默认使用短文本（`城/关/枢/腹`）；emoji 只在显式开关打开时启用，避免默认字体链路的缺字风险。可通过 `ProjectSettings` 键 `fortress_war/ui/use_marker_emoji` 或环境变量 `FORTRESS_WAR_USE_MARKER_EMOJI=1` 显式开启
 - 地图世界尺寸按移动端/桌面端采用不同策略：手机会拉开城池间距，桌面会进一步收紧默认战场，并让开局镜头轻微偏向玩家出生城，避免首屏被顶部 HUD 挡住
 - 地图世界尺寸大于单屏，可拖拽浏览更远的战线与城市，并支持缩放查看
 - 提供一个最小可玩的竖屏原型与核心规则测试
@@ -77,6 +78,20 @@
 HOME=/tmp XDG_DATA_HOME=/tmp godot --headless --path . -s res://tests/test_runner.gd
 ```
 
+本地 Web 冒烟检查可额外执行：
+
+```bash
+scripts/tools/web_smoke_check.sh
+```
+
+手工验收重点：
+
+- 背景四层是否都压在道路、城市和行军单位之下
+- 装饰层是否保持低对比、单层 alpha 不超过 `0.22`
+- 画面里是否存在会被误认成可交互节点或障碍的高对比封闭图形
+- 城市 marker 是否默认显示短文本，且只有在显式开关打开时才切到 emoji
+- 若要联调 emoji 路径，是否已设置 `fortress_war/ui/use_marker_emoji` 或 `FORTRESS_WAR_USE_MARKER_EMOJI=1`
+
 ## Web 试玩版
 
 - 仓库在 `master` 分支收到推送后，会通过 GitHub Actions 自动构建 Web 试玩版并发布到 GitHub Pages。
@@ -89,3 +104,4 @@ HOME=/tmp XDG_DATA_HOME=/tmp godot --headless --path . -s res://tests/test_runne
 
 - Web 导出不能假设浏览器宿主环境一定提供可用的中文字体。
 - 项目显式携带 `assets/fonts/NotoSansSC-Regular.otf` 作为默认 UI 字体，并用于场景绘制路径中的文本渲染，避免按钮、城市名和说明文案在 Web 版中出现方块字或缺字。
+- 城市 marker 同样默认走短文本，emoji 仅作为显式开关路径，不作为默认展示方案；显式开关支持 `fortress_war/ui/use_marker_emoji` 与 `FORTRESS_WAR_USE_MARKER_EMOJI=1`。

@@ -2804,32 +2804,149 @@ func _get_active_ai_owners() -> Array[int]:
 ## 绘制整张战场的草地与土地背景，避免地图落在默认灰底上。
 ##
 ## 调用场景：主场景每次重绘时最先执行。
-## 主要逻辑：先铺一层草地底色，再绘制几块半透明土地色斑和草纹线条，让战场更像户外地表。
+## 主要逻辑：先铺一层草地底色，再叠加不规则土地色块、分段草纹和极轻氛围块；全部使用确定性世界坐标，
+## 不创建独立背景节点，也不在每帧随机生成，确保背景稳定地压在道路、城市和行军单位之下。
 func _draw_battlefield_background() -> void:
-	var world_rect := Rect2(_map_offset, _get_scaled_map_world_size())
+	var world_rect: Rect2 = Rect2(Vector2.ZERO, _map_world_size)
+	var screen_rect: Rect2 = Rect2(_map_offset, _get_scaled_map_world_size())
+	_draw_battlefield_grass_base(screen_rect)
+	_draw_battlefield_earth_patches(world_rect)
+	_draw_battlefield_grass_stripes(world_rect)
+	_draw_battlefield_atmosphere_blocks(world_rect)
+
+
+## 绘制战场的主草地底层，作为四层背景的最底色。
+##
+## 调用场景：主场景每次重绘战场背景时。
+## 主要逻辑：用不透明草绿色先铺满整个可视战场，后续的土地色块和草纹都只做低强度叠加。
+func _draw_battlefield_grass_base(world_rect: Rect2) -> void:
 	draw_rect(world_rect, Color(0.42, 0.58, 0.31))
-	var dirt_patches: Array[Rect2] = [
-		Rect2(Vector2(0.05, 0.08), Vector2(0.22, 0.08)),
-		Rect2(Vector2(0.56, 0.16), Vector2(0.2, 0.08)),
-		Rect2(Vector2(0.18, 0.42), Vector2(0.26, 0.1)),
-		Rect2(Vector2(0.6, 0.7), Vector2(0.2, 0.09))
+
+
+## 绘制不规则的土地色块，用来打破单一草地底色。
+##
+## 调用场景：主场景重绘战场背景时，在草地底层之后执行。
+## 主要逻辑：使用固定的世界坐标比例生成软边多边形，色块 alpha 保持在低值范围内，避免像障碍或可点击区域。
+func _draw_battlefield_earth_patches(world_rect: Rect2) -> void:
+	var patch_defs: Array[Dictionary] = [
+		{"center_ratio": Vector2(0.16, 0.18), "size_ratio": Vector2(0.18, 0.10), "skew": Vector2(0.11, 0.03), "color": Color(0.56, 0.45, 0.26, 0.18)},
+		{"center_ratio": Vector2(0.44, 0.14), "size_ratio": Vector2(0.22, 0.11), "skew": Vector2(0.08, -0.02), "color": Color(0.58, 0.48, 0.30, 0.16)},
+		{"center_ratio": Vector2(0.73, 0.27), "size_ratio": Vector2(0.19, 0.09), "skew": Vector2(-0.10, 0.03), "color": Color(0.54, 0.43, 0.25, 0.17)},
+		{"center_ratio": Vector2(0.28, 0.56), "size_ratio": Vector2(0.24, 0.12), "skew": Vector2(0.06, 0.04), "color": Color(0.59, 0.49, 0.31, 0.15)},
+		{"center_ratio": Vector2(0.68, 0.74), "size_ratio": Vector2(0.18, 0.10), "skew": Vector2(-0.08, -0.03), "color": Color(0.55, 0.44, 0.27, 0.18)}
 	]
-	for patch in dirt_patches:
-		var patch_rect := Rect2(
-			_get_screen_position(Vector2(patch.position.x * _map_world_size.x, patch.position.y * _map_world_size.y)),
-			_get_screen_delta(Vector2(patch.size.x * _map_world_size.x, patch.size.y * _map_world_size.y))
-		)
-		draw_rect(patch_rect, Color(0.55, 0.46, 0.28, 0.32))
-	for band_index: int in range(10):
-		var ratio: float = float(band_index + 1) / 11.0
-		var y: float = ratio * _map_world_size.y
-		draw_line(
-			_get_screen_position(Vector2(0.0, y)),
-			_get_screen_position(Vector2(_map_world_size.x, y + 18.0)),
-			Color(0.5, 0.66, 0.36, 0.18),
-			max(12.0, 24.0 * _map_zoom),
-			true
-		)
+	for patch_def in patch_defs:
+		var center_ratio: Vector2 = Vector2(patch_def["center_ratio"])
+		var size_ratio: Vector2 = Vector2(patch_def["size_ratio"])
+		var patch_center: Vector2 = world_rect.position + Vector2(world_rect.size.x * center_ratio.x, world_rect.size.y * center_ratio.y)
+		var patch_size: Vector2 = Vector2(world_rect.size.x * size_ratio.x, world_rect.size.y * size_ratio.y)
+		var patch_skew: Vector2 = Vector2(patch_def["skew"])
+		var patch_color: Color = patch_def["color"]
+		_draw_battlefield_patch_blob(patch_center, patch_size, patch_skew, patch_color)
+
+
+## 绘制单个土地色块的软边多边形，供背景土地层复用。
+##
+## 调用场景：战场背景的土地色块层被重绘时。
+## 主要逻辑：根据给定中心、尺寸和偏移拼出一个不规则闭合多边形，并把它投到当前屏幕坐标上绘制。
+func _draw_battlefield_patch_blob(world_center: Vector2, world_size: Vector2, skew: Vector2, color: Color) -> void:
+	var half_size: Vector2 = world_size * 0.5
+	var world_points := PackedVector2Array([
+		world_center + Vector2(-half_size.x * 1.05, -half_size.y * 0.20),
+		world_center + Vector2(-half_size.x * 0.30, -half_size.y * 0.82) + skew * 0.15,
+		world_center + Vector2(half_size.x * 0.58, -half_size.y * 0.52) + skew,
+		world_center + Vector2(half_size.x * 0.86, half_size.y * 0.14) + skew * 0.55,
+		world_center + Vector2(half_size.x * 0.20, half_size.y * 0.84) - skew * 0.05,
+		world_center + Vector2(-half_size.x * 0.42, half_size.y * 0.62) - skew * 0.28
+	])
+	var screen_points := PackedVector2Array()
+	for point: Vector2 in world_points:
+		screen_points.append(_get_screen_position(point))
+	draw_colored_polygon(screen_points, color)
+
+
+## 绘制更自然的分段草纹，让战场不只是一整块平涂草地。
+##
+## 调用场景：主场景重绘战场背景时，在土地色块层之后执行。
+## 主要逻辑：用固定的世界坐标曲线分成若干短段，段与段之间保留间隙，形成自然但不抢眼的草纹。
+func _draw_battlefield_grass_stripes(world_rect: Rect2) -> void:
+	var stripe_defs: Array[Dictionary] = [
+		{"y_ratio": 0.12, "amplitude": 18.0, "phase": 0.0, "segment_length": 88.0, "gap_length": 54.0, "thickness": 12.0, "offset": -60.0, "color": Color(0.54, 0.67, 0.37, 0.18)},
+		{"y_ratio": 0.28, "amplitude": 14.0, "phase": 96.0, "segment_length": 76.0, "gap_length": 48.0, "thickness": 10.0, "offset": 24.0, "color": Color(0.57, 0.69, 0.40, 0.16)},
+		{"y_ratio": 0.48, "amplitude": 20.0, "phase": 188.0, "segment_length": 84.0, "gap_length": 62.0, "thickness": 11.0, "offset": -20.0, "color": Color(0.50, 0.64, 0.34, 0.15)},
+		{"y_ratio": 0.70, "amplitude": 16.0, "phase": 310.0, "segment_length": 80.0, "gap_length": 58.0, "thickness": 9.0, "offset": 48.0, "color": Color(0.58, 0.71, 0.42, 0.14)}
+	]
+	for stripe_def in stripe_defs:
+		_draw_battlefield_grass_stripe(world_rect, stripe_def)
+
+
+## 绘制单条分段草纹，供背景草纹层复用。
+##
+## 调用场景：战场背景的草纹层被重绘时。
+## 主要逻辑：按固定参数把一条波动草纹切成多个短段，只保留低对比的局部纹理，避免看起来像道路。
+func _draw_battlefield_grass_stripe(world_rect: Rect2, stripe_def: Dictionary) -> void:
+	var base_y: float = world_rect.position.y + world_rect.size.y * float(stripe_def["y_ratio"])
+	var amplitude: float = float(stripe_def["amplitude"])
+	var phase: float = float(stripe_def["phase"])
+	var segment_length: float = float(stripe_def["segment_length"])
+	var gap_length: float = float(stripe_def["gap_length"])
+	var thickness: float = max(4.0, float(stripe_def["thickness"]) * _map_zoom)
+	var offset_x: float = float(stripe_def["offset"])
+	var color: Color = stripe_def["color"]
+	var x: float = world_rect.position.x + offset_x
+	var end_x: float = world_rect.position.x + world_rect.size.x + segment_length
+	var segment_index: int = 0
+	while x < end_x:
+		var segment_end_x: float = min(x + segment_length, end_x)
+		if (segment_index + int(round(float(stripe_def["y_ratio"]) * 10.0))) % 3 != 1:
+			var start_point: Vector2 = _get_battlefield_grass_stripe_point(x, base_y, amplitude, phase)
+			var mid_x: float = (x + segment_end_x) * 0.5
+			var mid_point: Vector2 = _get_battlefield_grass_stripe_point(mid_x, base_y, amplitude, phase)
+			var end_point: Vector2 = _get_battlefield_grass_stripe_point(segment_end_x, base_y, amplitude, phase)
+			draw_line(_get_screen_position(start_point), _get_screen_position(mid_point), color, thickness, true)
+			draw_line(_get_screen_position(mid_point), _get_screen_position(end_point), color, thickness, true)
+		x += segment_length + gap_length
+		segment_index += 1
+
+
+## 计算单条草纹上的曲线采样点，确保所有草纹都来自确定性的世界坐标。
+##
+## 调用场景：背景草纹层在绘制每个短段时。
+## 主要逻辑：用固定频率的正弦和余弦叠加出轻微波动，让草纹更像自然起伏而不是直线。
+func _get_battlefield_grass_stripe_point(x_position: float, base_y: float, amplitude: float, phase: float) -> Vector2:
+	var wave_y: float = base_y
+	wave_y += sin((x_position + phase) / 175.0) * amplitude
+	wave_y += cos((x_position + phase) / 121.0) * amplitude * 0.25
+	return Vector2(x_position, wave_y)
+
+
+## 绘制极轻的氛围块，用来增加战场背景的层次感。
+##
+## 调用场景：主场景重绘战场背景时，在草纹层之后执行。
+## 主要逻辑：用几块低透明度的软圆块点缀边缘与空旷区域，颜色和透明度都保持极低，避免干扰道路和城市识别。
+func _draw_battlefield_atmosphere_blocks(world_rect: Rect2) -> void:
+	var block_defs: Array[Dictionary] = [
+		{"center_ratio": Vector2(0.10, 0.20), "radius": 88.0, "skew": Vector2(38.0, -14.0), "color": Color(0.74, 0.80, 0.56, 0.09)},
+		{"center_ratio": Vector2(0.38, 0.84), "radius": 72.0, "skew": Vector2(-26.0, 18.0), "color": Color(0.67, 0.75, 0.48, 0.08)},
+		{"center_ratio": Vector2(0.62, 0.12), "radius": 64.0, "skew": Vector2(20.0, 18.0), "color": Color(0.72, 0.77, 0.54, 0.07)},
+		{"center_ratio": Vector2(0.84, 0.56), "radius": 78.0, "skew": Vector2(-34.0, -16.0), "color": Color(0.63, 0.73, 0.46, 0.08)}
+	]
+	for block_def in block_defs:
+		var center_ratio: Vector2 = Vector2(block_def["center_ratio"])
+		var world_center: Vector2 = world_rect.position + Vector2(world_rect.size.x * center_ratio.x, world_rect.size.y * center_ratio.y)
+		var radius: float = float(block_def["radius"])
+		var skew: Vector2 = Vector2(block_def["skew"])
+		var color: Color = block_def["color"]
+		_draw_battlefield_soft_block(world_center, radius, skew, color)
+
+
+## 绘制单个极轻氛围块，供背景气氛层复用。
+##
+## 调用场景：战场背景的氛围块层被重绘时。
+## 主要逻辑：先用一枚大软圆建立氛围，再偏移叠加一枚更小的圆，形成更自然的云状背景块。
+func _draw_battlefield_soft_block(world_center: Vector2, world_radius: float, skew: Vector2, color: Color) -> void:
+	draw_circle(_get_screen_position(world_center), world_radius * _map_zoom, color)
+	draw_circle(_get_screen_position(world_center + skew), world_radius * 0.72 * _map_zoom, color.lerp(Color.WHITE, 0.06))
 
 
 ## 处理底部暂停按钮。
