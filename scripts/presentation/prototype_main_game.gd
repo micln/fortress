@@ -15,9 +15,9 @@ const UI_FONT: Font = preload("res://assets/fonts/NotoSansSC-Regular.otf")
 const MAP_ZOOM_STEP: float = 0.1
 const MARCH_SPEED: float = 180.0
 const UNIT_RADIUS: float = 16.0
-const SOLDIER_VISUAL_RADIUS: float = 9.0
-const SOLDIER_VISUAL_SPACING: float = 24.0
-const SOLDIER_VISUAL_LANE_OFFSET: float = 12.0
+const SOLDIER_VISUAL_RADIUS: float = 16.0
+const SOLDIER_VISUAL_SPACING: float = 42.0
+const SOLDIER_VISUAL_LANE_OFFSET: float = 21.0
 const MAX_VISUAL_SOLDIERS_PER_UNIT: int = 18
 const MARCH_COLLISION_DISTANCE: float = 34.0
 const DRAG_START_DISTANCE: float = 18.0
@@ -95,19 +95,17 @@ var _skip_selection_cancel_guard_count: int = 0
 @onready var top_panel: PanelContainer = $UILayer/TopPanel
 @onready var top_margin: MarginContainer = $UILayer/TopPanel/Margin
 @onready var top_info_column: VBoxContainer = $UILayer/TopPanel/Margin/InfoColumn
-@onready var bottom_panel: PanelContainer = $UILayer/BottomPanel
-@onready var bottom_margin: MarginContainer = $UILayer/BottomPanel/BottomMargin
-@onready var bottom_primary_row: HBoxContainer = $UILayer/BottomPanel/BottomMargin/BottomColumn/PrimaryRow
 @onready var status_label: Label = $UILayer/TopPanel/Margin/InfoColumn/StatusLabel
 @onready var hint_label: Label = $UILayer/TopPanel/Margin/InfoColumn/HintLabel
 @onready var ai_config_label: Label = $UILayer/TopPanel/Margin/InfoColumn/AiConfigLabel
-@onready var cancel_selection_button: Button = $UILayer/BottomPanel/BottomMargin/BottomColumn/PrimaryRow/CancelSelectionButton
 @onready var floating_upgrade_panel: PanelContainer = $UILayer/FloatingUpgradePanel
 @onready var upgrade_level_button: Button = $UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow/LevelButton
 @onready var upgrade_defense_button: Button = $UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow/DefenseButton
 @onready var upgrade_production_button: Button = $UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow/ProductionButton
-@onready var pause_button: Button = $UILayer/BottomPanel/BottomMargin/BottomColumn/PrimaryRow/PauseButton
-@onready var restart_button: Button = $UILayer/BottomPanel/BottomMargin/BottomColumn/PrimaryRow/RestartButton
+@onready var left_bottom_buttons: HBoxContainer = $UILayer/LeftBottomButtons
+@onready var pause_button: Button = $UILayer/LeftBottomButtons/PauseButton
+@onready var restart_button: Button = $UILayer/LeftBottomButtons/RestartButton
+@onready var home_button: Button = $UILayer/LeftBottomButtons/HomeButton
 @onready var overlay_layer: CanvasLayer = $Overlay
 @onready var overlay_panel: PanelContainer = $Overlay/OverlayPanel
 @onready var overlay_margin: MarginContainer = $Overlay/OverlayPanel/OverlayMargin
@@ -165,7 +163,6 @@ func _ready() -> void:
 	_apply_desktop_default_landscape()
 	_apply_dynamic_resolution()
 	_apply_responsive_hud_layout()
-	_apply_responsive_bottom_panel_layout()
 	_apply_responsive_overlay_layout()
 	_apply_responsive_order_dialog_layout()
 	get_window().size_changed.connect(_on_window_size_changed)
@@ -183,12 +180,12 @@ func _ready() -> void:
 	_setup_ai_controls()
 	_setup_continuous_status_label()
 	_apply_ai_profile()
-	cancel_selection_button.pressed.connect(_on_cancel_selection_button_pressed)
 	upgrade_level_button.pressed.connect(_on_upgrade_level_button_pressed)
 	upgrade_defense_button.pressed.connect(_on_upgrade_defense_button_pressed)
 	upgrade_production_button.pressed.connect(_on_upgrade_production_button_pressed)
 	pause_button.pressed.connect(_on_pause_button_pressed)
 	restart_button.pressed.connect(_on_restart_button_pressed)
+	home_button.pressed.connect(_on_home_button_pressed)
 	overlay_action_button.pressed.connect(_on_overlay_action_button_pressed)
 	order_dialog_layer.visible = false
 	_setup_map_selection()
@@ -257,7 +254,6 @@ func _handle_window_size_changed() -> void:
 	_last_window_resize_frame = current_frame
 	_apply_dynamic_resolution()
 	_apply_responsive_hud_layout()
-	_apply_responsive_bottom_panel_layout()
 	_apply_responsive_overlay_layout()
 	_apply_responsive_order_dialog_layout()
 	_resize_map_world_for_viewport()
@@ -310,13 +306,18 @@ func _get_top_panel_bottom() -> float:
 ## 按当前窗口逻辑尺寸设置内容分辨率，避免高 DPI 设备把 UI 误缩小。
 ##
 ## 调用场景：主场景启动时、窗口尺寸变化时。
-## 主要逻辑：先读取窗口像素尺寸；Web 平台会按屏幕缩放因子换算为逻辑尺寸，再写入 `content_scale_size`。
+## 主要逻辑：Web 平台使用屏幕缩放因子换算为逻辑尺寸；其他平台保持设计尺寸，让引擎自动 upscale 到全屏。
 func _apply_dynamic_resolution() -> void:
 	var window: Window = get_window()
 	var target_size: Vector2i = window.size
 	if target_size.x <= 0 or target_size.y <= 0:
 		return
-	window.content_scale_size = _to_logical_window_size(target_size)
+	print("[DEBUG] window.size=", target_size, " content_scale_size=", window.content_scale_size)
+	# Android 等平台：content_scale_size 保持设计尺寸（viewport_width/height），
+	# 引擎自动 upscale 到 window.size，使画面正确放大
+	if OS.has_feature("web"):
+		window.content_scale_size = _to_logical_window_size(target_size)
+	# else: 保持默认的 content_scale_size（= viewport_width/height）
 
 
 ## 将窗口像素尺寸转换为逻辑尺寸，优先修复移动端 Web 高 DPI 下字体过小问题。
@@ -404,56 +405,6 @@ func _apply_responsive_hud_layout() -> void:
 
 
 ## 按当前视口宽度调整底部操作栏，使用更紧凑的布局。
-##
-## 调用场景：主场景初始化、窗口尺寸变化、移动端旋转后。
-## 主要逻辑：精简底部按钮，使用图标或小尺寸文字按钮，最大化战场可视区域。
-func _apply_responsive_bottom_panel_layout() -> void:
-	var viewport_size: Vector2 = get_viewport_rect().size
-	var is_narrow_layout: bool = viewport_size.x <= NARROW_OVERLAY_BREAKPOINT
-
-	if is_narrow_layout:
-		# 移动端：极简底部栏
-		bottom_panel.offset_left = 2.0
-		bottom_panel.offset_top = -40.0
-		bottom_panel.offset_right = -2.0
-		bottom_panel.offset_bottom = -2.0
-		bottom_margin.add_theme_constant_override("margin_left", 4)
-		bottom_margin.add_theme_constant_override("margin_top", 3)
-		bottom_margin.add_theme_constant_override("margin_right", 4)
-		bottom_margin.add_theme_constant_override("margin_bottom", 3)
-		bottom_primary_row.add_theme_constant_override("separation", 4)
-		cancel_selection_button.text = "✕"
-		cancel_selection_button.custom_minimum_size = Vector2(36.0, 32.0)
-		cancel_selection_button.add_theme_font_size_override("font_size", 18)
-		pause_button.text = "▸"
-		pause_button.custom_minimum_size = Vector2(36.0, 32.0)
-		pause_button.add_theme_font_size_override("font_size", 18)
-		restart_button.text = "↻"
-		restart_button.custom_minimum_size = Vector2(36.0, 32.0)
-		restart_button.add_theme_font_size_override("font_size", 18)
-		return
-
-	# 桌面端：紧凑布局
-	bottom_panel.offset_left = 8.0
-	bottom_panel.offset_top = -56.0
-	bottom_panel.offset_right = -8.0
-	bottom_panel.offset_bottom = -8.0
-	bottom_margin.add_theme_constant_override("margin_left", 8)
-	bottom_margin.add_theme_constant_override("margin_top", 6)
-	bottom_margin.add_theme_constant_override("margin_right", 8)
-	bottom_margin.add_theme_constant_override("margin_bottom", 6)
-	bottom_primary_row.add_theme_constant_override("separation", 8)
-	cancel_selection_button.text = "✕"
-	cancel_selection_button.custom_minimum_size = Vector2(48.0, 38.0)
-	cancel_selection_button.add_theme_font_size_override("font_size", 20)
-	pause_button.text = "▸"
-	pause_button.custom_minimum_size = Vector2(48.0, 38.0)
-	pause_button.add_theme_font_size_override("font_size", 20)
-	restart_button.text = "↻"
-	restart_button.custom_minimum_size = Vector2(48.0, 38.0)
-	restart_button.add_theme_font_size_override("font_size", 20)
-
-
 ## 按当前视口宽度调整开局弹窗布局，避免手机上被最小宽度和双列表单挤出屏幕。
 ##
 ## 调用场景：主场景初始化、窗口尺寸变化、移动端旋转后。
@@ -1060,9 +1011,7 @@ func _refresh_view() -> void:
 		ai_config_label.text = "%d方 | %s | %s%s" % [_player_count, _get_ai_difficulty_name(_ai_difficulty), _get_ai_style_name(_ai_style), pause_suffix]
 	else:
 		ai_config_label.text = "对局：%d 方 | %s | %s%s" % [_player_count, _get_ai_difficulty_name(_ai_difficulty), _get_ai_style_name(_ai_style), pause_suffix]
-	cancel_selection_button.disabled = _selected_city_id == -1 or _game_over or not _game_started or _manual_paused
 	pause_button.disabled = _game_over or not _game_started
-	pause_button.text = "继续" if _manual_paused else "暂停"
 	_refresh_upgrade_buttons()
 	queue_redraw()
 
@@ -1836,7 +1785,7 @@ func _set_map_zoom(next_zoom: float, anchor_screen_position: Vector2) -> void:
 func _can_start_map_drag(pointer_position: Vector2) -> bool:
 	if _game_over or not _game_started or order_dialog_layer.visible or overlay_layer.visible:
 		return false
-	if bottom_panel.get_global_rect().has_point(pointer_position):
+	if left_bottom_buttons.get_global_rect().has_point(pointer_position):
 		return false
 	if floating_upgrade_panel.visible and floating_upgrade_panel.get_global_rect().has_point(pointer_position):
 		return false
@@ -1986,19 +1935,6 @@ func _on_overlay_action_button_pressed() -> void:
 	_show_play_state()
 
 
-## 处理底部取消选择按钮。
-##
-## 调用场景：玩家只想放弃当前源城市选择时。
-## 主要逻辑：如果当前没有打开出兵弹窗，则直接清空源城市选择。
-func _on_cancel_selection_button_pressed() -> void:
-	if order_dialog_layer.visible:
-		_on_order_cancel_button_pressed()
-		return
-	if _selected_city_id == -1:
-		return
-	_clear_selection_with_message("已取消选择。重新点一个蓝色城市即可。")
-
-
 ## 处理底部等级升级按钮。
 ##
 ## 调用场景：玩家选中己方城市后点击 `升级` 按钮时。
@@ -2036,6 +1972,17 @@ func _on_upgrade_production_button_pressed() -> void:
 func _on_restart_button_pressed() -> void:
 	_start_new_match(_current_map_id)
 	_show_play_state()
+
+
+## 处理返回主页按钮。
+##
+## 调用场景：玩家点击返回主页按钮时。
+## 主要逻辑：返回地图选择界面。
+func _on_home_button_pressed() -> void:
+	_game_started = false
+	_manual_paused = false
+	overlay_layer.visible = false
+	map_selection_panel.show_panel()
 
 
 ## 切换到正式对局状态并关闭说明遮罩。
@@ -2558,7 +2505,7 @@ func _handle_selection_cancel_release(pointer_position: Vector2) -> void:
 		"pointer_position": pointer_position,
 		"picked_city_id": _pick_city_at_position(pointer_position),
 		"selected_city_id": _selected_city_id,
-		"bottom_hit": bottom_panel.get_global_rect().has_point(pointer_position),
+		"bottom_hit": left_bottom_buttons.get_global_rect().has_point(pointer_position),
 		"upgrade_hit": floating_upgrade_panel.visible and floating_upgrade_panel.get_global_rect().has_point(pointer_position)
 	})
 	if _should_ignore_selection_cancel(pointer_position):
@@ -2592,7 +2539,7 @@ func _should_ignore_selection_cancel(pointer_position: Vector2) -> bool:
 		return true
 	if floating_upgrade_panel.visible and floating_upgrade_panel.get_global_rect().has_point(pointer_position):
 		return true
-	if bottom_panel.get_global_rect().has_point(pointer_position):
+	if left_bottom_buttons.get_global_rect().has_point(pointer_position):
 		return true
 	return false
 

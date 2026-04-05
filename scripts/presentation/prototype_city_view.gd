@@ -3,21 +3,21 @@ extends Area2D
 
 signal city_pressed(city_id: int)
 
-const CITY_SIZE: Vector2 = Vector2(108.0, 78.0)
-const TAP_MAX_DRAG_DISTANCE: float = 18.0
+const CITY_SIZE: Vector2 = Vector2(180.0, 130.0)
+const TAP_MAX_DRAG_DISTANCE: float = 30.0
 const TOUCH_MOUSE_DEDUP_WINDOW_MS: int = 450
 const INPUT_DEBUG_LOG_ENABLED: bool = true
 const MARKER_EMOJI_PROJECT_SETTING: StringName = &"fortress_war/ui/use_marker_emoji"
 const MARKER_EMOJI_ENV_VAR: String = "FORTRESS_WAR_USE_MARKER_EMOJI"
 const MARKER_TEXT_FALLBACK_PROJECT_SETTING: StringName = &"fortress_war/ui/force_marker_text_fallback"
 const MARKER_TEXT_FALLBACK_ENV_VAR: String = "FORTRESS_WAR_FORCE_MARKER_TEXT_FALLBACK"
-const CITY_BASE_CENTER: Vector2 = Vector2(0.0, 8.0)
-const CITY_SHADOW_CENTER: Vector2 = Vector2(0.0, 20.0)
-const CITY_BASE_OUTER_RADIUS: float = 34.0
-const CITY_BASE_INNER_RADIUS: float = 26.0
-const CITY_BASE_PLATE_RECT: Rect2 = Rect2(Vector2(-18.0, 24.0), Vector2(36.0, 11.0))
-const CITY_PLATFORM_RECT: Rect2 = Rect2(Vector2(-30.0, 12.0), Vector2(60.0, 18.0))
-const CITY_MOAT_RADIUS: float = 40.0
+const CITY_BASE_CENTER: Vector2 = Vector2(0.0, 14.0)
+const CITY_SHADOW_CENTER: Vector2 = Vector2(0.0, 35.0)
+const CITY_BASE_OUTER_RADIUS: float = 60.0
+const CITY_BASE_INNER_RADIUS: float = 46.0
+const CITY_BASE_PLATE_RECT: Rect2 = Rect2(Vector2(-32.0, 42.0), Vector2(64.0, 19.0))
+const CITY_PLATFORM_RECT: Rect2 = Rect2(Vector2(-53.0, 21.0), Vector2(106.0, 32.0))
+const CITY_MOAT_RADIUS: float = 70.0
 const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
 
 var city_id: int = -1
@@ -63,7 +63,7 @@ func sync_from_state(city, selected: bool, screen_position: Vector2) -> void:
 	city_node_type = String(city.node_type)
 	is_selected = selected
 	position = screen_position
-	marker_label.text = _get_city_marker_text(city_node_type, _should_use_marker_emoji())
+	marker_label.text = ""
 	name_label.text = city.name
 	soldier_label.text = "%d/%d" % [city.soldiers, city.max_soldiers]
 	attr_label.text = _build_attr_text(city)
@@ -199,9 +199,9 @@ func _draw_city_base(base_color: Color) -> void:
 	draw_line(Vector2(-35.0, 25.0), Vector2(35.0, 25.0), stone_dark, 0.8, true)
 
 
-const CITY_BODY_RECT: Rect2 = Rect2(Vector2(-20.0, 0.0), Vector2(40.0, 24.0))
-const CITY_ROOF_W: float = 52.0
-const CITY_ROOF_H: float = 14.0
+const CITY_BODY_RECT: Rect2 = Rect2(Vector2(-35.0, 0.0), Vector2(70.0, 42.0))
+const CITY_ROOF_W: float = 91.0
+const CITY_ROOF_H: float = 25.0
 
 func _draw_city_keep(base_color: Color) -> void:
 	# 墙色随 owner 变化（蓝=玩家/灰=中立/其他=敌方）

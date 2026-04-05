@@ -22,7 +22,7 @@ func get_city_definitions() -> Array[Dictionary]:
 		{"id": 0, "name": "北疆", "position": Vector2(0.5, 0.05), "initial_soldiers": 10, "level": 2, "defense": 2, "production_rate": 1.0, "node_type": "heartland"},
 		{"id": 1, "name": "辽东", "position": Vector2(0.15, 0.15), "initial_soldiers": 8, "level": 2, "defense": 2, "production_rate": 1.0, "node_type": "normal"},
 		{"id": 2, "name": "幽州", "position": Vector2(0.4, 0.18), "initial_soldiers": 6, "level": 1, "defense": 2, "production_rate": 1.1, "node_type": "normal"},
-		{"id": 3, "name": "渤海", "position": Vector2(0.5, 0.25), "initial_soldiers": 5, "level": 1, "defense": 1, "production_rate": 1.2, "node_type": "hub"},
+		{"id": 3, "name": "渤海", "position": Vector2(0.7, 0.3), "initial_soldiers": 5, "level": 1, "defense": 1, "production_rate": 1.2, "node_type": "hub"},
 		{"id": 4, "name": "山东", "position": Vector2(0.6, 0.18), "initial_soldiers": 6, "level": 1, "defense": 2, "production_rate": 1.1, "node_type": "normal"},
 		{"id": 5, "name": "江东", "position": Vector2(0.85, 0.15), "initial_soldiers": 8, "level": 2, "defense": 2, "production_rate": 1.0, "node_type": "normal"},
 		{"id": 6, "name": "洛阳", "position": Vector2(0.5, 0.48), "initial_soldiers": 10, "level": 2, "defense": 2, "production_rate": 1.3, "node_type": "hub"},

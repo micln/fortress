@@ -127,7 +127,8 @@ func set_offset(offset: Vector2) -> void:
 ##
 ## 调用场景：桌面滚轮缩放、移动端双指缩放。
 func set_zoom(next_zoom: float, anchor_screen_position: Vector2) -> void:
-	var clamped_zoom: float = clamp(next_zoom, MAP_ZOOM_MIN, MAP_ZOOM_MAX)
+	var effective_min_zoom: float = _calculate_min_zoom()
+	var clamped_zoom: float = clamp(next_zoom, effective_min_zoom, MAP_ZOOM_MAX)
 	if is_equal_approx(clamped_zoom, map_zoom):
 		return
 	var world_anchor_before_zoom: Vector2 = screen_to_world(anchor_screen_position)
@@ -172,6 +173,14 @@ func clamp_map_offset(offset: Vector2) -> Vector2:
 		clamp(offset.x, min_offset_x, max_offset_x),
 		clamp(offset.y, min_offset_y, max_offset_y)
 	)
+
+
+## 计算最小缩放值，确保缩放后地图恰好填满视口（不会比视口小）。
+func _calculate_min_zoom() -> float:
+	var viewport_size: Vector2 = _get_viewport_size()
+	var min_zoom_x: float = viewport_size.x / map_world_size.x
+	var min_zoom_y: float = viewport_size.y / map_world_size.y
+	return max(min(min_zoom_x, min_zoom_y), MAP_ZOOM_MIN)
 
 
 ## 获取缩放后的地图世界尺寸。

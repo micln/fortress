@@ -107,7 +107,7 @@ func _draw_battlefield_forests(canvas: Node2D, world_rect: Rect2, map_zoom: floa
 func _draw_battlefield_forest_cluster(canvas: Node2D, world_center: Vector2, world_radius: float, tree_count: int, color: Color, map_zoom: float, world_to_screen: Callable) -> void:
 	var screen_center: Vector2 = world_to_screen.call(world_center)
 	var screen_radius: float = world_radius * map_zoom
-	var tree_size: float = max(6.0, 18.0 * map_zoom)
+	var tree_size: float = max(6.0, 32.0 * map_zoom)
 
 	# 绘制树木（简单的三角形表示松树）
 	for i in range(tree_count):

@@ -1,69 +1,72 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/presentation/prototype_main_game.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/presentation/prototype_city_view.gd" id="2_city"]
 [ext_resource type="FontFile" path="res://assets/fonts/NotoSansSC-Regular.otf" id="3_font"]
-[ext_resource type="PackedScene" path="res://scenes/ui/map_selection.tscn" id="6_map_select"]
+[ext_resource type="Texture2D" path="res://assets/icons/pause.svg" id="4_pause"]
+[ext_resource type="Texture2D" path="res://assets/icons/restart.svg" id="5_restart"]
+[ext_resource type="Texture2D" path="res://assets/icons/home.svg" id="6_home"]
+[ext_resource type="PackedScene" path="res://scenes/ui/map_selection.tscn" id="7_map_select"]
 
 [sub_resource type="LabelSettings" id="LabelSettings_status"]
 font = ExtResource("3_font")
-font_size = 20
+font_size = 35
 font_color = Color(0.956863, 0.972549, 1, 1)
 outline_size = 1
 outline_color = Color(0.027451, 0.0431373, 0.0705882, 0.7)
 
 [sub_resource type="LabelSettings" id="LabelSettings_hint"]
 font = ExtResource("3_font")
-font_size = 17
+font_size = 30
 font_color = Color(0.768627, 0.843137, 0.921569, 1)
 outline_size = 0
 outline_color = Color(0, 0, 0, 0)
 
 [sub_resource type="LabelSettings" id="LabelSettings_overlay_title"]
 font = ExtResource("3_font")
-font_size = 46
+font_size = 81
 font_color = Color(0.996078, 0.952941, 0.792157, 1)
 outline_size = 2
 outline_color = Color(0.0392157, 0.054902, 0.0862745, 0.92)
 
 [sub_resource type="LabelSettings" id="LabelSettings_overlay_body"]
 font = ExtResource("3_font")
-font_size = 26
+font_size = 46
 font_color = Color(0.964706, 0.976471, 1, 1)
 outline_size = 1
 outline_color = Color(0.0235294, 0.0352941, 0.0588235, 0.72)
 
 [sub_resource type="LabelSettings" id="LabelSettings_overlay_rule"]
 font = ExtResource("3_font")
-font_size = 23
+font_size = 40
 font_color = Color(0.796078, 0.862745, 0.933333, 1)
 outline_size = 0
 outline_color = Color(0, 0, 0, 0)
 
 [sub_resource type="LabelSettings" id="LabelSettings_city_name"]
 font = ExtResource("3_font")
-font_size = 20
+font_size = 35
 font_color = Color(0.964706, 0.972549, 1, 1)
 outline_size = 1
 outline_color = Color(0.0235294, 0.0313726, 0.0470588, 0.72)
 
 [sub_resource type="LabelSettings" id="LabelSettings_city_soldier"]
 font = ExtResource("3_font")
-font_size = 28
+font_size = 49
 font_color = Color(1, 0.980392, 0.917647, 1)
 outline_size = 2
 outline_color = Color(0.027451, 0.0392157, 0.0627451, 0.82)
 
 [sub_resource type="LabelSettings" id="LabelSettings_city_attr"]
 font = ExtResource("3_font")
-font_size = 17
+font_size = 30
 font_color = Color(0.772549, 0.85098, 0.941176, 1)
 outline_size = 0
 outline_color = Color(0, 0, 0, 0)
 
 [sub_resource type="LabelSettings" id="LabelSettings_city_marker"]
 font = ExtResource("3_font")
-font_size = 36
+font_size = 63
 font_color = Color(0.988235, 0.972549, 0.909804, 1)
 outline_size = 2
 outline_color = Color(0.0352941, 0.0431373, 0.0588235, 0.78)
@@ -142,15 +145,15 @@ anchor_right = 1.0
 offset_left = 24.0
 offset_top = 16.0
 offset_right = -24.0
-offset_bottom = 118.0
+offset_bottom = 190.0
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBox_hud_panel")
 
 [node name="Margin" type="MarginContainer" parent="UILayer/TopPanel"]
 theme_override_constants/margin_left = 18
-theme_override_constants/margin_top = 10
+theme_override_constants/margin_top = 14
 theme_override_constants/margin_right = 18
-theme_override_constants/margin_bottom = 10
+theme_override_constants/margin_bottom = 14
 
 [node name="InfoColumn" type="VBoxContainer" parent="UILayer/TopPanel/Margin"]
 theme_override_constants/separation = 4
@@ -170,66 +173,36 @@ text = "电脑：1 家 | 普通 | 进攻型"
 autowrap_mode = 3
 label_settings = SubResource("LabelSettings_hint")
 
-[node name="BottomPanel" type="PanelContainer" parent="UILayer"]
+[node name="LeftBottomButtons" type="HBoxContainer" parent="UILayer"]
 anchor_top = 1.0
-anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 24.0
 offset_top = -120.0
-offset_right = -24.0
+offset_right = 24.0
 offset_bottom = -24.0
-theme_override_styles/panel = SubResource("StyleBox_hud_panel")
+theme_override_constants/separation = 20
 
-[node name="BottomMargin" type="MarginContainer" parent="UILayer/BottomPanel"]
-theme_override_constants/margin_left = 18
-theme_override_constants/margin_top = 12
-theme_override_constants/margin_right = 18
-theme_override_constants/margin_bottom = 12
+[node name="PauseButton" type="Button" parent="UILayer/LeftBottomButtons"]
+custom_minimum_size = Vector2(96, 96)
+text = ""
+tooltip_text = "暂停"
+icon = ExtResource("4_pause")
+expand_icon = true
+icon_alignment = 2
 
-[node name="BottomColumn" type="VBoxContainer" parent="UILayer/BottomPanel/BottomMargin"]
-theme_override_constants/separation = 10
+[node name="RestartButton" type="Button" parent="UILayer/LeftBottomButtons"]
+custom_minimum_size = Vector2(96, 96)
+tooltip_text = "重新开始"
+icon = ExtResource("5_restart")
+expand_icon = true
+icon_alignment = 2
 
-[node name="PrimaryRow" type="HBoxContainer" parent="UILayer/BottomPanel/BottomMargin/BottomColumn"]
-alignment = 1
-theme_override_constants/separation = 18
-
-[node name="CancelSelectionButton" type="Button" parent="UILayer/BottomPanel/BottomMargin/BottomColumn/PrimaryRow"]
-text = "取消选择"
-theme_override_font_sizes/font_size = 22
-custom_minimum_size = Vector2(160, 48)
-
-[node name="PauseButton" type="Button" parent="UILayer/BottomPanel/BottomMargin/BottomColumn/PrimaryRow"]
-text = "暂停"
-theme_override_font_sizes/font_size = 22
-custom_minimum_size = Vector2(118, 48)
-
-[node name="RestartButton" type="Button" parent="UILayer/BottomPanel/BottomMargin/BottomColumn/PrimaryRow"]
-text = "重新开始"
-theme_override_font_sizes/font_size = 22
-custom_minimum_size = Vector2(160, 48)
-
-[node name="UpgradeRow" type="HBoxContainer" parent="UILayer/BottomPanel/BottomMargin/BottomColumn"]
-visible = false
-alignment = 1
-theme_override_constants/separation = 12
-
-[node name="UpgradeLevelButton" type="Button" parent="UILayer/BottomPanel/BottomMargin/BottomColumn/UpgradeRow"]
-text = "升级"
-visible = false
-theme_override_font_sizes/font_size = 20
-custom_minimum_size = Vector2(138, 44)
-
-[node name="UpgradeDefenseButton" type="Button" parent="UILayer/BottomPanel/BottomMargin/BottomColumn/UpgradeRow"]
-text = "升防"
-visible = false
-theme_override_font_sizes/font_size = 20
-custom_minimum_size = Vector2(138, 44)
-
-[node name="UpgradeProductionButton" type="Button" parent="UILayer/BottomPanel/BottomMargin/BottomColumn/UpgradeRow"]
-text = "升产"
-visible = false
-theme_override_font_sizes/font_size = 20
-custom_minimum_size = Vector2(138, 44)
+[node name="HomeButton" type="Button" parent="UILayer/LeftBottomButtons"]
+custom_minimum_size = Vector2(96, 96)
+tooltip_text = "返回主页"
+icon = ExtResource("6_home")
+expand_icon = true
+icon_alignment = 2
 
 [node name="FloatingUpgradePanel" type="PanelContainer" parent="UILayer"]
 visible = false
@@ -251,22 +224,22 @@ theme_override_constants/separation = 6
 
 [node name="LevelButton" type="Button" parent="UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow"]
 text = "Lv"
-theme_override_font_sizes/font_size = 14
-custom_minimum_size = Vector2(52, 30)
+theme_override_font_sizes/font_size = 25
+custom_minimum_size = Vector2(91, 53)
 
 [node name="DefenseButton" type="Button" parent="UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow"]
 text = "防"
-theme_override_font_sizes/font_size = 14
-custom_minimum_size = Vector2(52, 30)
+theme_override_font_sizes/font_size = 25
+custom_minimum_size = Vector2(91, 53)
 
 [node name="ProductionButton" type="Button" parent="UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow"]
 text = "产"
-theme_override_font_sizes/font_size = 14
-custom_minimum_size = Vector2(52, 30)
+theme_override_font_sizes/font_size = 25
+custom_minimum_size = Vector2(91, 53)
 
 [node name="MapSelection" type="CanvasLayer" parent="."]
 
-[node name="MapSelectionPanel" parent="MapSelection" instance=ExtResource("6_map_select")]
+[node name="MapSelectionPanel" parent="MapSelection" instance=ExtResource("7_map_select")]
 
 [node name="Overlay" type="CanvasLayer" parent="."]
 
@@ -373,24 +346,24 @@ color = Color(0.0117647, 0.0156863, 0.027451, 0.68)
 
 [node name="Panel" type="PanelContainer" parent="OrderDialog"]
 anchor_left = 0.1
-anchor_top = 0.18
+anchor_top = 0.15
 anchor_right = 0.9
-anchor_bottom = 0.84
+anchor_bottom = 0.88
 offset_left = 0.0
 offset_top = 0.0
 offset_right = 0.0
 offset_bottom = 0.0
-custom_minimum_size = Vector2(500, 520)
+custom_minimum_size = Vector2(875, 910)
 theme_override_styles/panel = SubResource("StyleBox_dialog_panel")
 
 [node name="Margin" type="MarginContainer" parent="OrderDialog/Panel"]
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 24
-theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 24
+theme_override_constants/margin_left = 42
+theme_override_constants/margin_top = 42
+theme_override_constants/margin_right = 42
+theme_override_constants/margin_bottom = 42
 
 [node name="Column" type="VBoxContainer" parent="OrderDialog/Panel/Margin"]
-theme_override_constants/separation = 16
+theme_override_constants/separation = 28
 
 [node name="OrderScroll" type="ScrollContainer" parent="OrderDialog/Panel/Margin/Column"]
 size_flags_vertical = 3
@@ -432,62 +405,62 @@ label_settings = SubResource("LabelSettings_overlay_title")
 
 [node name="AdjustRow" type="HBoxContainer" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent"]
 alignment = 1
-theme_override_constants/separation = 14
+theme_override_constants/separation = 25
 
 [node name="Minus10Button" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow"]
 text = "-10"
-theme_override_font_sizes/font_size = 24
-custom_minimum_size = Vector2(110, 52)
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(193, 91)
 
 [node name="Minus1Button" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow"]
 text = "-1"
-theme_override_font_sizes/font_size = 24
-custom_minimum_size = Vector2(100, 52)
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(175, 91)
 
 [node name="Plus1Button" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow"]
 text = "+1"
-theme_override_font_sizes/font_size = 24
-custom_minimum_size = Vector2(100, 52)
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(175, 91)
 
 [node name="Plus10Button" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow"]
 text = "+10"
-theme_override_font_sizes/font_size = 24
-custom_minimum_size = Vector2(110, 52)
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(193, 91)
 
 [node name="QuickGrid" type="GridContainer" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent"]
 columns = 3
-theme_override_constants/h_separation = 14
-theme_override_constants/v_separation = 14
+theme_override_constants/h_separation = 25
+theme_override_constants/v_separation = 25
 
 [node name="Plus20Button" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
 text = "+20"
-theme_override_font_sizes/font_size = 24
-custom_minimum_size = Vector2(0, 52)
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(0, 91)
 
 [node name="Plus50Button" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
 text = "+50"
-theme_override_font_sizes/font_size = 24
-custom_minimum_size = Vector2(0, 52)
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(0, 91)
 
 [node name="HalfButton" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
 text = "50%"
-theme_override_font_sizes/font_size = 24
-custom_minimum_size = Vector2(0, 52)
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(0, 91)
 
 [node name="FullButton" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
 text = "100%"
-theme_override_font_sizes/font_size = 24
-custom_minimum_size = Vector2(0, 52)
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(0, 91)
 
 [node name="RecommendButton" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
 text = "推荐"
-theme_override_font_sizes/font_size = 24
-custom_minimum_size = Vector2(0, 52)
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(0, 91)
 
 [node name="MaxKeepOneButton" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
 text = "留1人"
-theme_override_font_sizes/font_size = 24
-custom_minimum_size = Vector2(0, 52)
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(0, 91)
 
 [node name="ActionRow" type="HBoxContainer" parent="OrderDialog/Panel/Margin/Column"]
 alignment = 1
@@ -495,13 +468,13 @@ theme_override_constants/separation = 16
 
 [node name="CancelButton" type="Button" parent="OrderDialog/Panel/Margin/Column/ActionRow"]
 text = "取消"
-theme_override_font_sizes/font_size = 26
-custom_minimum_size = Vector2(180, 58)
+theme_override_font_sizes/font_size = 46
+custom_minimum_size = Vector2(315, 102)
 
 [node name="ConfirmButton" type="Button" parent="OrderDialog/Panel/Margin/Column/ActionRow"]
 text = "确认出兵"
-theme_override_font_sizes/font_size = 26
-custom_minimum_size = Vector2(220, 58)
+theme_override_font_sizes/font_size = 46
+custom_minimum_size = Vector2(385, 102)
 
 [node name="CityTemplate" type="Area2D" parent="."]
 visible = false
@@ -510,35 +483,35 @@ script = ExtResource("2_city")
 [node name="CollisionShape2D" type="CollisionShape2D" parent="CityTemplate"]
 
 [node name="MarkerLabel" type="Label" parent="CityTemplate"]
-offset_left = -48.0
-offset_top = -56.0
-offset_right = 48.0
-offset_bottom = 8.0
+offset_left = -84.0
+offset_top = -98.0
+offset_right = 84.0
+offset_bottom = 14.0
 horizontal_alignment = 1
 vertical_alignment = 1
 text = "城"
 label_settings = SubResource("LabelSettings_city_marker")
 
 [node name="NameLabel" type="Label" parent="CityTemplate"]
-offset_left = -60.0
-offset_top = 36.0
-offset_right = 60.0
-offset_bottom = 60.0
+offset_left = -105.0
+offset_top = 63.0
+offset_right = 105.0
+offset_bottom = 105.0
 horizontal_alignment = 1
 label_settings = SubResource("LabelSettings_city_name")
 
 [node name="SoldierLabel" type="Label" parent="CityTemplate"]
-offset_left = -60.0
-offset_top = 58.0
-offset_right = 60.0
-offset_bottom = 92.0
+offset_left = -105.0
+offset_top = 102.0
+offset_right = 105.0
+offset_bottom = 161.0
 horizontal_alignment = 1
 label_settings = SubResource("LabelSettings_city_soldier")
 
 [node name="AttrLabel" type="Label" parent="CityTemplate"]
-offset_left = -72.0
-offset_top = 88.0
-offset_right = 72.0
-offset_bottom = 110.0
+offset_left = -126.0
+offset_top = 154.0
+offset_right = 126.0
+offset_bottom = 193.0
 horizontal_alignment = 1
 label_settings = SubResource("LabelSettings_city_attr")
