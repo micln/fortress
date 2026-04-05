@@ -34,12 +34,11 @@ func setup(bgm_player: AudioStreamPlayer, sfx_player: AudioStreamPlayer) -> void
 
 ## 初始化程序化音频，生成所有音效和背景音乐。
 ##
-## 调用场景：setup 之后，游戏开始前。
-## 主要逻辑：Web 平台跳过音频初始化；其他平台生成所有音频流。
+## 调用场景：setup 之后，游戏开始前（桌面端）或用户首次交互后（Web 端）。
+## 主要逻辑：生成所有音频流。Web 平台由于 autoplay 限制，应在用户点击"开始游戏"后再调用。
 func initialize_audio() -> void:
-	if OS.has_feature("web"):
-		_audio_ready = false
-		return
+	if _audio_ready:
+		return  # 已经初始化过，避免重复
 
 	_music_stream = _create_melody_stream([262.0, 330.0, 392.0, 330.0, 440.0, 392.0, 330.0, 294.0], 0.22, 0.16)
 	_select_sfx_stream = _create_tone_stream(784.0, 0.09, 0.22)

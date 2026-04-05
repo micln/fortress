@@ -173,7 +173,9 @@ func _ready() -> void:
 	_apply_responsive_order_dialog_layout()
 	get_window().size_changed.connect(_on_window_size_changed)
 	_audio_manager.setup(bgm_player, sfx_player)
-	_audio_manager.initialize_audio()
+	# 音频延迟到用户首次交互后再初始化（Web 平台 autoplay 限制）
+	if not OS.has_feature("web"):
+		_audio_manager.initialize_audio()
 	_audio_manager.bgm_finished.connect(_on_bgm_finished)
 	_camera_controller.setup(
 		Callable(self, "_get_viewport_size"),
@@ -1985,6 +1987,8 @@ func _show_play_state() -> void:
 	_log_game_debug("play_state_entered", {})
 	status_label.text = "先点蓝色城市，再点目标城市，直接创建持续出兵路线。"
 	hint_label.text = "同一路线再次点击可关闭；一个源城有多条路线时会轮流出兵。"
+	# Web 平台在用户首次交互后初始化音频（绕过 autoplay 限制）
+	_audio_manager.initialize_audio()
 	_audio_manager.play_sfx_by_id("select")
 	_audio_manager.play_bgm_if_needed()
 	_refresh_view()
