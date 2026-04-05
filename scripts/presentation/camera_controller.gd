@@ -14,7 +14,7 @@ const MOBILE_MAP_WORLD_PADDING: Vector2 = Vector2(460.0, 680.0)
 const DESKTOP_MAP_WORLD_SCALE: Vector2 = Vector2(1.12, 1.16)
 const DESKTOP_MAP_WORLD_PADDING: Vector2 = Vector2(100.0, 160.0)
 const MAP_WORLD_MIN_SIZE: Vector2 = Vector2(1200.0, 2200.0)
-const MAP_ZOOM_MIN: float = 0.75
+const MAP_ZOOM_MIN: float = 0.3
 const MAP_ZOOM_MAX: float = 1.8
 
 var map_world_size: Vector2 = Vector2.ZERO
@@ -45,26 +45,53 @@ func setup(
 ## 重置地图尺寸和偏移，用于新开局。
 ##
 ## 调用场景：新开一局时。
-func reset_for_new_match(target_world_size: Vector2) -> void:
+func reset_for_new_match(target_world_size: Vector2, city_bounds: Rect2 = Rect2()) -> void:
 	map_world_size = target_world_size
-	map_zoom = _calculate_fit_zoom()
+	map_zoom = _calculate_fit_zoom(city_bounds)
 
 
 ## 计算让地图完整显示在视口中的缩放值。
-func _calculate_fit_zoom() -> float:
+func _calculate_fit_zoom(city_bounds: Rect2 = Rect2()) -> float:
 	var viewport_size: Vector2 = _get_viewport_size()
-	var fit_zoom_x: float = viewport_size.x / map_world_size.x
-	var fit_zoom_y: float = viewport_size.y / map_world_size.y
+	var target_size: Vector2
+	# 如果有城市边界信息，基于城市边界计算缩放
+	if city_bounds.size.x > 0.0 and city_bounds.size.y > 0.0:
+		# 给城市边界增加一点padding
+		var padding: float = 80.0
+		target_size = Vector2(city_bounds.size.x + padding * 2.0, city_bounds.size.y + padding * 2.0)
+	else:
+		target_size = map_world_size
+	var fit_zoom_x: float = viewport_size.x / target_size.x
+	var fit_zoom_y: float = viewport_size.y / target_size.y
 	var fit_zoom: float = min(fit_zoom_x, fit_zoom_y)
 	return clamp(fit_zoom, MAP_ZOOM_MIN, MAP_ZOOM_MAX)
+
+
+## 根据城市位置计算边界框。
+func calculate_city_bounds(cities: Array) -> Rect2:
+	if cities.is_empty():
+		return Rect2()
+	var min_pos: Vector2 = cities[0].position
+	var max_pos: Vector2 = cities[0].position
+	for city in cities:
+		min_pos.x = min(min_pos.x, city.position.x)
+		min_pos.y = min(min_pos.y, city.position.y)
+		max_pos.x = max(max_pos.x, city.position.x)
+		max_pos.y = max(max_pos.y, city.position.y)
+	return Rect2(min_pos, max_pos - min_pos)
+
+
+## 调整缩放以让指定城市边界完整显示在视口中。
+func fit_to_city_bounds(city_bounds: Rect2) -> void:
+	map_zoom = _calculate_fit_zoom(city_bounds)
 
 
 ## 计算目标地图世界尺寸（公开方法）。
 ##
 ## 调用场景：主场景新开一局时需要传入尺寸给地图装载器。
 ## 主要逻辑：根据视口和平台计算目标地图尺寸。
-func get_target_map_world_size(viewport_size: Vector2) -> Vector2:
-	return _get_target_map_world_size(viewport_size)
+func get_target_map_world_size(viewport_size: Vector2, use_viewport_size: bool = false) -> Vector2:
+	return _get_target_map_world_size(viewport_size, use_viewport_size)
 
 
 ## 应用视口变化，扩展地图世界尺寸。
@@ -153,7 +180,10 @@ func _get_scaled_map_world_size() -> Vector2:
 
 
 ## 获取目标地图世界尺寸。
-func _get_target_map_world_size(viewport_size: Vector2) -> Vector2:
+func _get_target_map_world_size(viewport_size: Vector2, use_viewport_size: bool = false) -> Vector2:
+	if use_viewport_size:
+		# 适配模式：地图尺寸填满当前视口
+		return viewport_size
 	var world_scale: Vector2 = DESKTOP_MAP_WORLD_SCALE
 	var world_padding: Vector2 = DESKTOP_MAP_WORLD_PADDING
 	if _is_mobile_runtime():

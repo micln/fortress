@@ -149,8 +149,16 @@ func _validate_definition(
 ## 把设计画布坐标映射到当前运行时世界坐标。
 ##
 ## 调用场景：从模板数据生成运行时城市状态时。
-## 主要逻辑：使用 design canvas 与当前 `map_world_size` 的比例进行线性缩放，保证预设图兼容当前大地图尺寸。
+## 主要逻辑：坐标支持两种模式——绝对坐标（>1）或百分比坐标（0-1）。
+## 百分比坐标直接乘以世界尺寸，支持不同设备自适应。
 func _map_design_position_to_world(design_position: Vector2, design_canvas_size: Vector2, map_world_size: Vector2) -> Vector2:
+	# 如果坐标在 0-1 范围内，视为百分比，直接乘以世界尺寸
+	if design_position.x <= 1.0 and design_position.y <= 1.0:
+		return Vector2(
+			design_position.x * map_world_size.x,
+			design_position.y * map_world_size.y
+		)
+	# 否则视为绝对坐标，按设计画布比例映射
 	if design_canvas_size.x <= 0.0 or design_canvas_size.y <= 0.0:
 		return design_position
 	return Vector2(

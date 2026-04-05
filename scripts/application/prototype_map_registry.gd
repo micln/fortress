@@ -56,14 +56,42 @@ func get_default_map_id() -> String:
 
 ## 注册所有内置地图。
 func _register_builtin_maps() -> void:
-	# 中原风云（默认第一张）
-	var central_plains: PrototypePresetMapDefinition = preload("res://scripts/application/prototype_preset_map_definition.gd").new()
-	_maps["china_central_plains_v1"] = central_plains
+	# 第1关：新手演练（默认第一张）
+	var level01 = preload("res://scripts/application/level_01_xin_shou.gd").new()
+	_maps["level_01_xin_shou"] = level01
 
-	# 江东风云
-	var jiangdong = preload("res://scripts/application/prototype_map_jiangdong.gd").new()
-	_maps["jiangdong_v1"] = jiangdong
+	# 第2关：入门之战
+	var level02 = preload("res://scripts/application/level_02_ru_men.gd").new()
+	_maps["level_02_ru_men"] = level02
 
-	# 荆襄风云
-	var jingxiang = preload("res://scripts/application/prototype_map_jingxiang.gd").new()
-	_maps["jingxiang_v1"] = jingxiang
+	# 第3关：三角纷争
+	var level03 = preload("res://scripts/application/level_03_san_jiao.gd").new()
+	_maps["level_03_san_jiao"] = level03
+
+	# 第4关：四方争雄
+	var level04 = preload("res://scripts/application/level_04_si_fang.gd").new()
+	_maps["level_04_si_fang"] = level04
+
+	# 第5关：草莽崛起
+	var level05 = preload("res://scripts/application/level_05_cao_mang.gd").new()
+	_maps["level_05_cao_mang"] = level05
+
+	# 第6关：逐鹿荆襄
+	var level06 = preload("res://scripts/application/level_06_jing_xiang.gd").new()
+	_maps["level_06_jing_xiang"] = level06
+
+	# 第7关：逐鹿中原
+	var level07 = preload("res://scripts/application/level_07_zhong_yuan.gd").new()
+	_maps["level_07_zhong_yuan"] = level07
+
+	# 第8关：群雄并起
+	var level08 = preload("res://scripts/application/level_08_qun_xiong.gd").new()
+	_maps["level_08_qun_xiong"] = level08
+
+	# 第9关：天下大乱
+	var level09 = preload("res://scripts/application/level_09_tian_xia.gd").new()
+	_maps["level_09_tian_xia"] = level09
+
+	# 第10关：一统天下
+	var level10 = preload("res://scripts/application/level_10_tong_yi.gd").new()
+	_maps["level_10_tong_yi"] = level10

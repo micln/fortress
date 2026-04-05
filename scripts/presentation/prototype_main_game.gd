@@ -750,7 +750,8 @@ func _start_new_match(map_id: String = "") -> void:
 	_end_pinch_zoom()
 	_cancel_map_drag_state()
 	var viewport_size: Vector2 = get_viewport_rect().size
-	var target_world_size: Vector2 = _camera_controller.get_target_map_world_size(viewport_size)
+	# 所有关卡都使用视口尺寸作为世界尺寸，城市直接填满屏幕
+	var target_world_size: Vector2 = _camera_controller.get_target_map_world_size(viewport_size, true)
 	_camera_controller.reset_for_new_match(target_world_size)
 	_cities = _preset_map_loader.build_map({
 		"player_count": _player_count,
@@ -765,7 +766,9 @@ func _start_new_match(map_id: String = "") -> void:
 		_log_game_debug("map_load_failed", {"error_message": hint_label.text})
 		_refresh_view()
 		return
-	_camera_controller.center_map(Callable(self, "_get_first_player_city"))
+	# zoom=1.0，偏移为0，城市从屏幕左上角开始绘制
+	_camera_controller.map_zoom = 1.0
+	_camera_controller.set_offset(Vector2(0, 0))
 	_spawn_city_views()
 	_log_game_debug("match_started", {
 		"player_count": _player_count,
