@@ -86,9 +86,6 @@ var _active_touch_points: Dictionary = {}
 var _is_pinching_map: bool = false
 var _pinch_last_distance: float = 0.0
 var _skip_selection_cancel_guard_count: int = 0
-var _order_hud_panel: PanelContainer
-var _order_hud_title_label: Label
-var _order_hud_body_label: Label
 
 @onready var cities_root: Node2D = $Cities
 @onready var bgm_player: AudioStreamPlayer = $BgmPlayer
@@ -184,7 +181,6 @@ func _ready() -> void:
 		Callable(self, "_get_top_panel_bottom")
 	)
 	_setup_ai_controls()
-	_setup_order_hud_panel()
 	_setup_continuous_status_label()
 	_apply_ai_profile()
 	cancel_selection_button.pressed.connect(_on_cancel_selection_button_pressed)
@@ -365,89 +361,97 @@ func _resize_map_world_for_viewport() -> void:
 ## 按当前视口宽度调整顶部和底部 HUD，减少移动端对主战场可视空间的占用。
 ##
 ## 调用场景：主场景初始化、窗口尺寸变化、移动端旋转后。
-## 主要逻辑：窄屏下把顶部栏贴近屏幕边缘、压缩内边距与字号，并隐藏次要提示文案；宽屏时恢复完整 HUD。
+## 主要逻辑：精简顶部栏，使用更小的尺寸和透明背景，最大化战场可视区域。
 func _apply_responsive_hud_layout() -> void:
 	var viewport_size: Vector2 = get_viewport_rect().size
 	var is_narrow_layout: bool = viewport_size.x <= NARROW_OVERLAY_BREAKPOINT
 
 	if is_narrow_layout:
-		top_panel.offset_left = 4.0
-		top_panel.offset_top = 4.0
-		top_panel.offset_right = -4.0
-		top_panel.offset_bottom = 58.0
-		top_margin.add_theme_constant_override("margin_left", 8)
-		top_margin.add_theme_constant_override("margin_top", 4)
-		top_margin.add_theme_constant_override("margin_right", 8)
-		top_margin.add_theme_constant_override("margin_bottom", 4)
-		top_info_column.add_theme_constant_override("separation", 1)
-		status_label.add_theme_font_size_override("font_size", 15)
+		# 移动端：更紧凑的顶部栏
+		top_panel.offset_left = 2.0
+		top_panel.offset_top = 2.0
+		top_panel.offset_right = -2.0
+		top_panel.offset_bottom = 44.0
+		top_margin.add_theme_constant_override("margin_left", 6)
+		top_margin.add_theme_constant_override("margin_top", 3)
+		top_margin.add_theme_constant_override("margin_right", 6)
+		top_margin.add_theme_constant_override("margin_bottom", 3)
+		top_info_column.add_theme_constant_override("separation", 0)
+		status_label.add_theme_font_size_override("font_size", 13)
+		status_label.visible = false  # 窄屏下隐藏状态标签，只保留配置信息
 		hint_label.visible = false
-		ai_config_label.add_theme_font_size_override("font_size", 13)
+		ai_config_label.add_theme_font_size_override("font_size", 12)
 		if _continuous_status_label != null:
-			_continuous_status_label.add_theme_font_size_override("font_size", 12)
+			_continuous_status_label.visible = false
 		return
 
-	top_panel.offset_left = 24.0
-	top_panel.offset_top = 16.0
-	top_panel.offset_right = -24.0
-	top_panel.offset_bottom = 118.0
-	top_margin.add_theme_constant_override("margin_left", 18)
-	top_margin.add_theme_constant_override("margin_top", 10)
-	top_margin.add_theme_constant_override("margin_right", 18)
-	top_margin.add_theme_constant_override("margin_bottom", 10)
-	top_info_column.add_theme_constant_override("separation", 4)
-	status_label.add_theme_font_size_override("font_size", 24)
-	hint_label.visible = true
-	ai_config_label.add_theme_font_size_override("font_size", 18)
+	# 桌面端：保持较小尺寸
+	top_panel.offset_left = 8.0
+	top_panel.offset_top = 8.0
+	top_panel.offset_right = -8.0
+	top_panel.offset_bottom = 72.0
+	top_margin.add_theme_constant_override("margin_left", 10)
+	top_margin.add_theme_constant_override("margin_top", 6)
+	top_margin.add_theme_constant_override("margin_right", 10)
+	top_margin.add_theme_constant_override("margin_bottom", 6)
+	top_info_column.add_theme_constant_override("separation", 2)
+	status_label.add_theme_font_size_override("font_size", 16)
+	status_label.visible = false  # 默认隐藏状态标签
+	hint_label.visible = false
+	ai_config_label.add_theme_font_size_override("font_size", 14)
 	if _continuous_status_label != null:
-		_continuous_status_label.add_theme_font_size_override("font_size", 14)
+		_continuous_status_label.visible = false
 
 
-## 按当前视口宽度调整底部操作栏，避免移动端按钮文案和最小宽度把面板撑得过高过宽。
+## 按当前视口宽度调整底部操作栏，使用更紧凑的布局。
 ##
 ## 调用场景：主场景初始化、窗口尺寸变化、移动端旋转后。
-## 主要逻辑：窄屏下把底栏贴近屏幕边缘，并把三个主按钮压成小按钮；宽屏时恢复桌面布局。
+## 主要逻辑：精简底部按钮，使用图标或小尺寸文字按钮，最大化战场可视区域。
 func _apply_responsive_bottom_panel_layout() -> void:
 	var viewport_size: Vector2 = get_viewport_rect().size
 	var is_narrow_layout: bool = viewport_size.x <= NARROW_OVERLAY_BREAKPOINT
 
 	if is_narrow_layout:
-		bottom_panel.offset_left = 4.0
-		bottom_panel.offset_top = -48.0
-		bottom_panel.offset_right = -4.0
-		bottom_panel.offset_bottom = -4.0
-		bottom_margin.add_theme_constant_override("margin_left", 6)
-		bottom_margin.add_theme_constant_override("margin_top", 4)
-		bottom_margin.add_theme_constant_override("margin_right", 6)
-		bottom_margin.add_theme_constant_override("margin_bottom", 4)
-		bottom_primary_row.add_theme_constant_override("separation", 6)
-		cancel_selection_button.text = "取消"
-		cancel_selection_button.custom_minimum_size = Vector2(64.0, 28.0)
-		cancel_selection_button.add_theme_font_size_override("font_size", 14)
-		pause_button.custom_minimum_size = Vector2(58.0, 28.0)
-		pause_button.add_theme_font_size_override("font_size", 14)
-		restart_button.text = "重开"
-		restart_button.custom_minimum_size = Vector2(64.0, 28.0)
-		restart_button.add_theme_font_size_override("font_size", 14)
+		# 移动端：极简底部栏
+		bottom_panel.offset_left = 2.0
+		bottom_panel.offset_top = -40.0
+		bottom_panel.offset_right = -2.0
+		bottom_panel.offset_bottom = -2.0
+		bottom_margin.add_theme_constant_override("margin_left", 4)
+		bottom_margin.add_theme_constant_override("margin_top", 3)
+		bottom_margin.add_theme_constant_override("margin_right", 4)
+		bottom_margin.add_theme_constant_override("margin_bottom", 3)
+		bottom_primary_row.add_theme_constant_override("separation", 4)
+		cancel_selection_button.text = "✕"
+		cancel_selection_button.custom_minimum_size = Vector2(36.0, 32.0)
+		cancel_selection_button.add_theme_font_size_override("font_size", 18)
+		pause_button.text = "▸"
+		pause_button.custom_minimum_size = Vector2(36.0, 32.0)
+		pause_button.add_theme_font_size_override("font_size", 18)
+		restart_button.text = "↻"
+		restart_button.custom_minimum_size = Vector2(36.0, 32.0)
+		restart_button.add_theme_font_size_override("font_size", 18)
 		return
 
-	bottom_panel.offset_left = 24.0
-	bottom_panel.offset_top = -120.0
-	bottom_panel.offset_right = -24.0
-	bottom_panel.offset_bottom = -24.0
-	bottom_margin.add_theme_constant_override("margin_left", 18)
-	bottom_margin.add_theme_constant_override("margin_top", 12)
-	bottom_margin.add_theme_constant_override("margin_right", 18)
-	bottom_margin.add_theme_constant_override("margin_bottom", 12)
-	bottom_primary_row.add_theme_constant_override("separation", 18)
-	cancel_selection_button.text = "取消选择"
-	cancel_selection_button.custom_minimum_size = Vector2(160.0, 48.0)
-	cancel_selection_button.add_theme_font_size_override("font_size", 22)
-	pause_button.custom_minimum_size = Vector2(118.0, 48.0)
-	pause_button.add_theme_font_size_override("font_size", 22)
-	restart_button.text = "重新开始"
-	restart_button.custom_minimum_size = Vector2(160.0, 48.0)
-	restart_button.add_theme_font_size_override("font_size", 22)
+	# 桌面端：紧凑布局
+	bottom_panel.offset_left = 8.0
+	bottom_panel.offset_top = -56.0
+	bottom_panel.offset_right = -8.0
+	bottom_panel.offset_bottom = -8.0
+	bottom_margin.add_theme_constant_override("margin_left", 8)
+	bottom_margin.add_theme_constant_override("margin_top", 6)
+	bottom_margin.add_theme_constant_override("margin_right", 8)
+	bottom_margin.add_theme_constant_override("margin_bottom", 6)
+	bottom_primary_row.add_theme_constant_override("separation", 8)
+	cancel_selection_button.text = "✕"
+	cancel_selection_button.custom_minimum_size = Vector2(48.0, 38.0)
+	cancel_selection_button.add_theme_font_size_override("font_size", 20)
+	pause_button.text = "▸"
+	pause_button.custom_minimum_size = Vector2(48.0, 38.0)
+	pause_button.add_theme_font_size_override("font_size", 20)
+	restart_button.text = "↻"
+	restart_button.custom_minimum_size = Vector2(48.0, 38.0)
+	restart_button.add_theme_font_size_override("font_size", 20)
 
 
 ## 按当前视口宽度调整开局弹窗布局，避免手机上被最小宽度和双列表单挤出屏幕。
@@ -670,6 +674,9 @@ func _draw() -> void:
 				line_width = max(5.0, 10.0 * _camera_controller.map_zoom)
 
 			draw_line(from_position, target_position, line_color, line_width, true)
+
+	# 在道路上方绘制持续出兵任务的箭头
+	_draw_continuous_order_arrows()
 
 	for unit in _marching_units:
 		_draw_marching_unit_as_soldiers(unit)
@@ -1054,8 +1061,6 @@ func _refresh_view() -> void:
 	pause_button.disabled = _game_over or not _game_started
 	pause_button.text = "继续" if _manual_paused else "暂停"
 	_refresh_upgrade_buttons()
-	_refresh_continuous_status_label()
-	_refresh_order_hud_panel()
 	queue_redraw()
 
 
@@ -1156,19 +1161,19 @@ func _refresh_upgrade_buttons() -> void:
 ## 根据被选城市的位置摆放浮动升级条。
 ##
 ## 调用场景：刷新升级按钮时。
-## 主要逻辑：优先把面板放在城市右上侧；若接近屏幕边缘，则自动往回收，保证整块按钮都留在可视区内。
+## 主要逻辑：把面板放在城市右侧，使用更紧凑的尺寸。
 func _position_floating_upgrade_panel(city_position: Vector2) -> void:
 	var panel_size: Vector2 = floating_upgrade_panel.size
 	if panel_size == Vector2.ZERO:
-		panel_size = Vector2(298.0, 60.0)
+		panel_size = Vector2(180.0, 42.0)
 	var viewport_size: Vector2 = get_viewport_rect().size
 	var visible_rect := Rect2(Vector2.ZERO, viewport_size)
-	if not visible_rect.grow(80.0).has_point(city_position):
+	if not visible_rect.grow(60.0).has_point(city_position):
 		floating_upgrade_panel.visible = false
 		return
-	var desired_position := city_position + Vector2(66.0, -28.0)
-	var clamped_x: float = clamp(desired_position.x, 18.0, viewport_size.x - panel_size.x - 18.0)
-	var clamped_y: float = clamp(desired_position.y, 140.0, viewport_size.y - panel_size.y - 120.0)
+	var desired_position := city_position + Vector2(45.0, -22.0)
+	var clamped_x: float = clamp(desired_position.x, 10.0, viewport_size.x - panel_size.x - 10.0)
+	var clamped_y: float = clamp(desired_position.y, 80.0, viewport_size.y - panel_size.y - 50.0)
 	floating_upgrade_panel.position = Vector2(clamped_x, clamped_y)
 
 
@@ -1717,6 +1722,61 @@ func _dispatch_continuous_order_for_arrival_source(source_id: int) -> bool:
 	return _dispatch_continuous_orders_for_source(source_id)
 
 
+## 绘制所有持续出兵任务道路上的流动箭头。
+##
+## 调用场景：主场景 `_draw()` 绘制道路后。
+## 主要逻辑：在有持续出兵任务的道路上绘制指向目标城市的流动箭头，箭头颜色对应源城阵营。
+func _draw_continuous_order_arrows() -> void:
+	var orders: Array[Dictionary] = _order_dispatch_service.get_all_orders()
+	if orders.is_empty():
+		return
+
+	var time_based_offset: float = float(Time.get_ticks_msec() % 5000) / 5000.0
+
+	for order in orders:
+		var source_id: int = int(order["source_id"])
+		var target_id: int = int(order["target_id"])
+		if source_id < 0 or source_id >= _cities.size() or target_id < 0 or target_id >= _cities.size():
+			continue
+
+		var source = _cities[source_id]
+		var target = _cities[target_id]
+		var from_position: Vector2 = _camera_controller.world_to_screen(source.position)
+		var to_position: Vector2 = _camera_controller.world_to_screen(target.position)
+		var direction: Vector2 = (to_position - from_position).normalized()
+		var distance: float = from_position.distance_to(to_position)
+
+		# 根据距离计算箭头数量
+		var arrow_spacing: float = 80.0 * _camera_controller.map_zoom
+		var arrow_count: int = max(1, int(distance / arrow_spacing))
+
+		var owner_color: Color = PrototypeCityOwnerRef.get_color(source.owner)
+		var arrow_size: float = max(6.0, 10.0 * _camera_controller.map_zoom)
+
+		for i in range(arrow_count):
+			# 流动效果：基于时间的偏移
+			var t: float = (float(i) / arrow_count + time_based_offset)
+			if t > 1.0:
+				t -= 1.0
+
+			var arrow_center: Vector2 = from_position + direction * distance * t
+			_draw_arrow(arrow_center, direction, arrow_size, owner_color)
+
+
+## 在指定位置绘制一个指向特定方向的箭头。
+##
+## 调用场景：`_draw_continuous_order_arrows()` 需要绘制单个箭头时。
+## 主要逻辑：根据中心位置、方向和大小绘制三角形箭头。
+func _draw_arrow(center: Vector2, direction: Vector2, size: float, color: Color) -> void:
+	var perpendicular: Vector2 = Vector2(-direction.y, direction.x)
+	var points: PackedVector2Array = PackedVector2Array([
+		center + direction * size,
+		center - direction * size * 0.5 + perpendicular * size * 0.5,
+		center - direction * size * 0.5 - perpendicular * size * 0.5
+	])
+	draw_colored_polygon(points, color)
+
+
 ## 计算某支行军单位当前应当绘制在道路上的位置。
 ##
 ## 调用场景：主场景重绘所有行军单位时。
@@ -2048,48 +2108,7 @@ func _setup_continuous_status_label() -> void:
 ##
 ## 调用场景：主场景 `_ready()` 初始化 HUD 时。
 ## 主要逻辑：在 `UILayer` 下动态创建右侧常驻面板，避免把任务列表混进临时遮罩或弹窗层。
-func _setup_order_hud_panel() -> void:
-	_order_hud_panel = PanelContainer.new()
-	_order_hud_panel.name = "RightOrderPanel"
-	_order_hud_panel.anchor_left = 1.0
-	_order_hud_panel.anchor_top = 0.0
-	_order_hud_panel.anchor_right = 1.0
-	_order_hud_panel.anchor_bottom = 1.0
-	_order_hud_panel.offset_left = -300.0
-	_order_hud_panel.offset_top = 132.0
-	_order_hud_panel.offset_right = -24.0
-	_order_hud_panel.offset_bottom = -140.0
-	_order_hud_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_order_hud_panel.add_theme_stylebox_override("panel", top_panel.get_theme_stylebox("panel").duplicate())
-	ui_layer.add_child(_order_hud_panel)
 
-	var margin: MarginContainer = MarginContainer.new()
-	margin.name = "Margin"
-	margin.add_theme_constant_override("margin_left", 14)
-	margin.add_theme_constant_override("margin_top", 14)
-	margin.add_theme_constant_override("margin_right", 14)
-	margin.add_theme_constant_override("margin_bottom", 14)
-	_order_hud_panel.add_child(margin)
-
-	var column: VBoxContainer = VBoxContainer.new()
-	column.name = "Column"
-	column.add_theme_constant_override("separation", 10)
-	margin.add_child(column)
-
-	_order_hud_title_label = Label.new()
-	_order_hud_title_label.text = "进行中的出兵任务"
-	_order_hud_title_label.add_theme_font_size_override("font_size", 18)
-	_order_hud_title_label.add_theme_color_override("font_color", Color("f6d365"))
-	column.add_child(_order_hud_title_label)
-
-	_order_hud_body_label = Label.new()
-	_order_hud_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_order_hud_body_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	_order_hud_body_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_order_hud_body_label.add_theme_font_size_override("font_size", 14)
-	_order_hud_body_label.add_theme_color_override("font_color", Color("e8f0ff"))
-	column.add_child(_order_hud_body_label)
-	_refresh_order_hud_panel()
 
 
 ## 刷新顶部“自动出兵状态条”文案，让玩家看见每秒是否真的在自动出兵。
@@ -2108,46 +2127,6 @@ func _refresh_continuous_status_label() -> void:
 		_continuous_dispatch_last_second_count,
 		_continuous_dispatch_last_second_soldiers
 	]
-
-
-## 刷新右侧持续出兵 HUD，让玩家和 AI 的全部进行中路线都可见。
-##
-## 调用场景：界面刷新、任务增删、城市归属变化、开局重置后。
-## 主要逻辑：把调度服务快照转换成人类可读的多行文本，并结合当前路上的行军单位数判断是真正在路上、还是只是在等待下一次产兵。
-func _refresh_order_hud_panel() -> void:
-	if _order_hud_body_label == null:
-		return
-	var orders: Array[Dictionary] = _order_dispatch_service.get_all_orders()
-	if orders.is_empty():
-		_order_hud_body_label.text = "暂无持续出兵任务。\n\n操作：先点一座己方城市，再点目标城市。"
-		return
-
-	var lines: Array[String] = []
-	for order in orders:
-		var source_id: int = int(order["source_id"])
-		var target_id: int = int(order["target_id"])
-		if source_id < 0 or source_id >= _cities.size() or target_id < 0 or target_id >= _cities.size():
-			continue
-		var source = _cities[source_id]
-		var target = _cities[target_id]
-		var mode_text: String = "运兵" if source.owner == target.owner else "进攻"
-		var marching_count: int = _get_route_marching_unit_count(source_id, target_id)
-		var status_text: String = "等待产兵"
-		if marching_count > 0:
-			status_text = "路上 %d 队" % marching_count
-		elif source.soldiers <= 0:
-			status_text = "无兵"
-		var recent_dispatch_count: int = int(_continuous_dispatch_counts_by_source_last_second.get(source_id, 0))
-		lines.append("%s [%s]\n%s -> %s\n近1秒 %d 次 | 产 %.1f/秒" % [
-			status_text,
-			mode_text,
-			source.name,
-			target.name,
-			recent_dispatch_count,
-			source.production_rate
-		])
-
-	_order_hud_body_label.text = "\n\n".join(lines)
 
 
 ## 统计某条路线当前仍在路上的行军单位数量。
@@ -2793,6 +2772,3 @@ func _on_bgm_finished() -> void:
 	if not _game_started or _game_over:
 		return
 	_audio_manager.play_bgm_if_needed()
-
-
-

@@ -69,18 +69,32 @@ outline_size = 2
 outline_color = Color(0.0352941, 0.0431373, 0.0588235, 0.78)
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_hud_panel"]
-bg_color = Color(0.0705882, 0.0941176, 0.141176, 0.92)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.392157, 0.533333, 0.74902, 0.95)
-corner_radius_top_left = 18
-corner_radius_top_right = 18
-corner_radius_bottom_right = 18
-corner_radius_bottom_left = 18
-shadow_color = Color(0, 0, 0, 0.3)
-shadow_size = 6
+bg_color = Color(0.0705882, 0.0941176, 0.141176, 0.45)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.392157, 0.533333, 0.74902, 0.5)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.15)
+shadow_size = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_upgrade_panel"]
+bg_color = Color(0.08, 0.12, 0.18, 0.65)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.5, 0.65, 0.85, 0.55)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+shadow_color = Color(0, 0, 0, 0.2)
+shadow_size = 2
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_overlay_panel"]
 bg_color = Color(0.0470588, 0.0666667, 0.105882, 0.98)
@@ -221,34 +235,34 @@ custom_minimum_size = Vector2(138, 44)
 visible = false
 offset_left = 360.0
 offset_top = 920.0
-offset_right = 658.0
-offset_bottom = 980.0
-theme_override_styles/panel = SubResource("StyleBox_hud_panel")
+offset_right = 580.0
+offset_bottom = 960.0
+theme_override_styles/panel = SubResource("StyleBox_upgrade_panel")
 
 [node name="FloatingUpgradeMargin" type="MarginContainer" parent="UILayer/FloatingUpgradePanel"]
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 8
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 4
 
 [node name="FloatingUpgradeRow" type="HBoxContainer" parent="UILayer/FloatingUpgradePanel/FloatingUpgradeMargin"]
 alignment = 1
-theme_override_constants/separation = 8
+theme_override_constants/separation = 6
 
 [node name="LevelButton" type="Button" parent="UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow"]
-text = "升级"
-theme_override_font_sizes/font_size = 18
-custom_minimum_size = Vector2(84, 34)
+text = "Lv"
+theme_override_font_sizes/font_size = 14
+custom_minimum_size = Vector2(52, 30)
 
 [node name="DefenseButton" type="Button" parent="UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow"]
-text = "升防"
-theme_override_font_sizes/font_size = 18
-custom_minimum_size = Vector2(84, 34)
+text = "防"
+theme_override_font_sizes/font_size = 14
+custom_minimum_size = Vector2(52, 30)
 
 [node name="ProductionButton" type="Button" parent="UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow"]
-text = "升产"
-theme_override_font_sizes/font_size = 18
-custom_minimum_size = Vector2(84, 34)
+text = "产"
+theme_override_font_sizes/font_size = 14
+custom_minimum_size = Vector2(52, 30)
 
 [node name="MapSelection" type="CanvasLayer" parent="."]
 

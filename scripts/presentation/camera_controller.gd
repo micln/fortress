@@ -115,15 +115,26 @@ func world_delta_to_screen(world_delta: Vector2) -> Vector2:
 	return world_delta * map_zoom
 
 
-## 边界钳制地图偏移。
+## 边界钳制地图偏移，确保地图边缘不会露出视口。
+##
+## 调用场景：设置地图偏移、拖拽地图时。
+## 主要逻辑：当地图比视口大时，限制偏移让地图边缘始终贴合视口边缘；
+## 当地图比视口小时，居中显示。
 func clamp_map_offset(offset: Vector2) -> Vector2:
 	var viewport_size: Vector2 = _get_viewport_size()
 	var scaled_map_size: Vector2 = _get_scaled_map_world_size()
-	var min_offset_x: float = min(0.0, viewport_size.x - scaled_map_size.x)
-	var min_offset_y: float = min(0.0, viewport_size.y - scaled_map_size.y)
+
+	# 计算偏移的边界限制
+	# 当地图比视口大时：offset 应该为负数，范围是 [viewport - map_size, 0]
+	# 当地图比视口小时：offset 应该为正数，居中显示
+	var min_offset_x: float = viewport_size.x - scaled_map_size.x
+	var max_offset_x: float = 0.0
+	var min_offset_y: float = viewport_size.y - scaled_map_size.y
+	var max_offset_y: float = 0.0
+
 	return Vector2(
-		clamp(offset.x, min_offset_x, 0.0),
-		clamp(offset.y, min_offset_y, 0.0)
+		clamp(offset.x, min_offset_x, max_offset_x),
+		clamp(offset.y, min_offset_y, max_offset_y)
 	)
 
 
