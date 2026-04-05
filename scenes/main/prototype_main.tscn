@@ -1,8 +1,9 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/presentation/prototype_main_game.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/presentation/prototype_city_view.gd" id="2_city"]
 [ext_resource type="FontFile" path="res://assets/fonts/NotoSansSC-Regular.otf" id="3_font"]
+[ext_resource type="PackedScene" path="res://scenes/ui/map_selection.tscn" id="6_map_select"]
 
 [sub_resource type="LabelSettings" id="LabelSettings_status"]
 font = ExtResource("3_font")
@@ -248,6 +249,10 @@ custom_minimum_size = Vector2(84, 34)
 text = "升产"
 theme_override_font_sizes/font_size = 18
 custom_minimum_size = Vector2(84, 34)
+
+[node name="MapSelection" type="CanvasLayer" parent="."]
+
+[node name="MapSelectionPanel" parent="MapSelection" instance=ExtResource("6_map_select")]
 
 [node name="Overlay" type="CanvasLayer" parent="."]
 

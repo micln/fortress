@@ -1,0 +1,104 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/presentation/prototype_map_selection_panel.gd" id="1_map_select"]
+[ext_resource type="FontFile" path="res://assets/fonts/NotoSansSC-Regular.otf" id="2_font"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_map_panel"]
+bg_color = Color(0.0470588, 0.0666667, 0.105882, 0.98)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.913725, 0.835294, 0.509804, 0.95)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+shadow_color = Color(0, 0, 0, 0.4)
+shadow_size = 10
+
+[sub_resource type="LabelSettings" id="LabelSettings_title"]
+font = ExtResource("2_font")
+font_size = 52
+font_color = Color(0.996078, 0.952941, 0.792157, 1)
+outline_size = 2
+outline_color = Color(0.0392157, 0.054902, 0.0862745, 0.92)
+
+[sub_resource type="LabelSettings" id="LabelSettings_item"]
+font = ExtResource("2_font")
+font_size = 26
+font_color = Color(0.964706, 0.976471, 1, 1)
+outline_size = 1
+outline_color = Color(0.0235294, 0.0352941, 0.0588235, 0.72)
+
+[node name="MapSelectionPanel" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_map_select")
+
+[node name="MapSelectShade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0117647, 0.0156863, 0.027451, 0.85)
+
+[node name="MapSelectPanel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -380.0
+offset_right = 300.0
+offset_bottom = 380.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBox_map_panel")
+
+[node name="MapSelectMargin" type="MarginContainer" parent="MapSelectPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 28
+
+[node name="MapSelectColumn" type="VBoxContainer" parent="MapSelectPanel/MapSelectMargin"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="MapSelectTitleLabel" type="Label" parent="MapSelectPanel/MapSelectMargin/MapSelectColumn"]
+layout_mode = 2
+text = "选择地图"
+horizontal_alignment = 1
+label_settings = SubResource("LabelSettings_title")
+
+[node name="MapListScroll" type="ScrollContainer" parent="MapSelectPanel/MapSelectMargin/MapSelectColumn"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="MapList" type="VBoxContainer" parent="MapSelectPanel/MapSelectMargin/MapSelectColumn/MapListScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="ConfirmButton" type="Button" parent="MapSelectPanel/MapSelectMargin/MapSelectColumn"]
+layout_mode = 2
+text = "确认选择"
+theme_override_font_sizes/font_size = 28
+custom_minimum_size = Vector2(0, 60)
+
+[node name="CancelButton" type="Button" parent="MapSelectPanel/MapSelectMargin/MapSelectColumn"]
+layout_mode = 2
+text = "返回"
+theme_override_font_sizes/font_size = 26
+custom_minimum_size = Vector2(0, 54)

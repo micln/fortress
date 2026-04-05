@@ -4,22 +4,36 @@ extends RefCounted
 const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
 const PrototypeCityStateRef = preload("res://scripts/domain/prototype_city_state.gd")
 const PrototypePresetMapDefinitionRef = preload("res://scripts/application/prototype_preset_map_definition.gd")
+const PrototypeMapRegistryRef = preload("res://scripts/application/prototype_map_registry.gd")
 const DESIGN_CANVAS_MIN_CITY_DISTANCE: float = 110.0
 const PASS_DEFENSE_BONUS: int = 1
 const HUB_PRODUCTION_BONUS: float = 0.2
 const HEARTLAND_SOLDIER_BONUS: int = 2
 
 var _last_error_message: String = ""
+var _current_map_id: String = ""
 
 
-## 按当前对局配置构建第一阶段预设地图的运行时城市数组。
+## 按当前对局配置构建预设地图的运行时城市数组。
 ##
 ## 调用场景：主场景开局时替代随机地图生成器，或测试中验证预设地图结构。
-## 主要逻辑：读取预设地图定义，先做模板合法性校验，再把 design canvas 坐标映射到运行时世界尺寸，
+## 主要逻辑：从注册表获取指定地图的定义，先做模板合法性校验，再把 design canvas 坐标映射到运行时世界尺寸，
 ## 最后按当前总方数套用出生配置并生成 `PrototypeCityState` 数组。
-func build_map(match_config: Dictionary, map_world_size: Vector2, _random: RandomNumberGenerator) -> Array:
+func build_map(match_config: Dictionary, map_world_size: Vector2, _random: RandomNumberGenerator, map_id: String = "") -> Array:
 	_last_error_message = ""
-	var definition = PrototypePresetMapDefinitionRef.new()
+	var registry: PrototypeMapRegistry = PrototypeMapRegistryRef.get_instance()
+
+	# 如果没有指定 map_id，使用第一张可用地图
+	if map_id.is_empty():
+		map_id = registry.get_default_map_id()
+	_current_map_id = map_id
+
+	var definition: RefCounted = registry.get_map_definition(map_id)
+	if definition == null:
+		_last_error_message = "未找到地图: %s" % map_id
+		push_error(_last_error_message)
+		return []
+
 	var metadata: Dictionary = definition.get_metadata()
 	var city_definitions: Array[Dictionary] = definition.get_city_definitions()
 	var roads: Array[Vector2i] = definition.get_roads()
@@ -69,6 +83,11 @@ func build_map(match_config: Dictionary, map_world_size: Vector2, _random: Rando
 ## 主要逻辑：暴露最近一次模板校验失败的中文消息，避免调用方只能看到空地图结果却不知道具体原因。
 func get_last_error_message() -> String:
 	return _last_error_message
+
+
+## 返回上一次构建使用的地图 ID。
+func get_current_map_id() -> String:
+	return _current_map_id
 
 
 ## 校验预设地图模板是否满足第一阶段运行要求。

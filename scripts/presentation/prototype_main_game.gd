@@ -10,6 +10,7 @@ const PrototypeCityViewRef = preload("res://scripts/presentation/prototype_city_
 const AudioManagerRef = preload("res://scripts/presentation/audio_manager.gd")
 const BackgroundRendererRef = preload("res://scripts/presentation/background_renderer.gd")
 const CameraControllerRef = preload("res://scripts/presentation/camera_controller.gd")
+const PrototypeMapRegistryRef = preload("res://scripts/application/prototype_map_registry.gd")
 const UI_FONT: Font = preload("res://assets/fonts/NotoSansSC-Regular.otf")
 const MAP_ZOOM_STEP: float = 0.1
 const MARCH_SPEED: float = 180.0
@@ -73,6 +74,7 @@ var _last_winner: int = PrototypeCityOwnerRef.NEUTRAL
 var _player_count: int = 5
 var _ai_difficulty: String = PrototypeEnemyAiServiceRef.DIFFICULTY_EASY
 var _ai_style: String = PrototypeEnemyAiServiceRef.STYLE_DEFENSIVE
+var _current_map_id: String = ""
 var _last_window_resize_frame: int = -1
 var _is_dragging_map: bool = false
 var _drag_candidate_active: bool = false
@@ -123,6 +125,8 @@ var _order_hud_body_label: Label
 @onready var overlay_difficulty_option: OptionButton = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/SettingsGrid/DifficultyOption
 @onready var overlay_style_option: OptionButton = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/SettingsGrid/StyleOption
 @onready var overlay_action_button: Button = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayActionButton
+@onready var map_selection_layer: CanvasLayer = $MapSelection
+@onready var map_selection_panel = $MapSelection/MapSelectionPanel
 @onready var order_dialog_layer: CanvasLayer = $OrderDialog
 @onready var order_dialog_panel: PanelContainer = $OrderDialog/Panel
 @onready var order_dialog_margin: MarginContainer = $OrderDialog/Panel/Margin
@@ -181,7 +185,6 @@ func _ready() -> void:
 	_setup_order_hud_panel()
 	_setup_continuous_status_label()
 	_apply_ai_profile()
-	_start_new_match()
 	cancel_selection_button.pressed.connect(_on_cancel_selection_button_pressed)
 	upgrade_level_button.pressed.connect(_on_upgrade_level_button_pressed)
 	upgrade_defense_button.pressed.connect(_on_upgrade_defense_button_pressed)
@@ -190,7 +193,49 @@ func _ready() -> void:
 	restart_button.pressed.connect(_on_restart_button_pressed)
 	overlay_action_button.pressed.connect(_on_overlay_action_button_pressed)
 	order_dialog_layer.visible = false
-	_show_start_overlay()
+	_setup_map_selection()
+
+
+## 初始化地图选择逻辑并显示地图选择面板。
+##
+## 调用场景：主场景 `_ready()` 末尾。
+## 主要逻辑：连接地图选择信号，并显示地图选择界面。
+func _setup_map_selection() -> void:
+	# 隐藏开始游戏 overlay，确保只显示地图选择
+	overlay_layer.visible = false
+	map_selection_panel.map_selected.connect(_on_map_selected)
+	map_selection_panel.selection_cancelled.connect(_on_map_selection_cancelled)
+	map_selection_panel.show_panel()
+
+
+## 处理地图选择完成后的回调。
+##
+## 调用场景：地图选择面板确认选择后。
+## 主要逻辑：保存选中的地图 ID，根据地图支持的方数调整玩家数量，开始新对局并直接进入游戏。
+func _on_map_selected(map_id: String) -> void:
+	_current_map_id = map_id
+	# 根据地图支持的方数调整玩家数量
+	var registry: PrototypeMapRegistry = PrototypeMapRegistryRef.get_instance()
+	var map_def = registry.get_map_definition(map_id)
+	if map_def != null:
+		var supported_counts: Array = map_def.get_metadata().get("supported_faction_counts", [2, 3, 4, 5])
+		# 如果当前玩家数量不在支持范围内，改为最大值
+		if not supported_counts.has(_player_count):
+			_player_count = supported_counts[-1]  # 取最大的支持方数
+	_apply_ai_profile()
+	_start_new_match(map_id)
+	_show_play_state()
+
+
+## 处理地图选择取消的回调。
+##
+## 调用场景：地图选择面板点击取消后。
+## 主要逻辑：使用默认地图，开始新对局并直接进入游戏。
+func _on_map_selection_cancelled() -> void:
+	var registry: PrototypeMapRegistry = PrototypeMapRegistryRef.get_instance()
+	_current_map_id = registry.get_default_map_id()
+	_start_new_match(_current_map_id)
+	_show_play_state()
 
 
 ## 响应视口尺寸变化，重新钳制地图偏移，避免横竖尺寸变动后出现可视区露空。
@@ -665,9 +710,11 @@ func _get_visual_lane_offset_for_launch(launch_order: int) -> float:
 ##
 ## 调用场景：首次进入游戏、点击重新开始、胜负结束后再开一局时。
 ## 主要逻辑：清空旧城市节点、旧行军队列和旧持续任务状态，再通过当前地图来源构建新的城市数据和表现节点。
-func _start_new_match() -> void:
+func _start_new_match(map_id: String = "") -> void:
 	_game_over = false
 	_game_started = false
+	if not map_id.is_empty():
+		_current_map_id = map_id
 	_manual_paused = false
 	_overlay_mode = "start"
 	_last_winner = PrototypeCityOwnerRef.NEUTRAL
@@ -700,7 +747,7 @@ func _start_new_match() -> void:
 		"player_count": _player_count,
 		"ai_difficulty": _ai_difficulty,
 		"ai_style": _ai_style
-	}, _camera_controller.map_world_size, _random)
+	}, _camera_controller.map_world_size, _random, _current_map_id)
 	if _cities.is_empty():
 		var error_message: String = _preset_map_loader.get_last_error_message()
 		status_label.text = "地图装载失败，请检查预设地图配置。"
@@ -1920,10 +1967,10 @@ func _on_upgrade_production_button_pressed() -> void:
 ## 处理底部重新开始按钮。
 ##
 ## 调用场景：玩家在对局中途或结束后主动要求重新开局时。
-## 主要逻辑：重建战局并重新展示说明面板，让玩家清楚地知道已进入新的一局。
+## 主要逻辑：重建战局并直接进入游戏，让玩家清楚地知道已进入新的一局。
 func _on_restart_button_pressed() -> void:
-	_start_new_match()
-	_show_start_overlay()
+	_start_new_match(_current_map_id)
+	_show_play_state()
 
 
 ## 切换到正式对局状态并关闭说明遮罩。
@@ -2608,16 +2655,16 @@ func _refresh_overlay_content(winner: int = PrototypeCityOwnerRef.NEUTRAL) -> vo
 			overlay_rule_label_3.text = ""
 			overlay_action_button.text = "继续游戏"
 		"game_over":
-			overlay_settings_grid.visible = true
+			overlay_settings_grid.visible = false
 			if winner == PrototypeCityOwnerRef.PLAYER:
 				overlay_title_label.text = "你赢了"
 				overlay_body_label.text = "你已经拿下全部敌方城市。"
 			else:
 				overlay_title_label.text = "%s 获胜" % PrototypeCityOwnerRef.get_owner_name(winner)
 				overlay_body_label.text = "%s 成为了地图上最后的统治者。" % PrototypeCityOwnerRef.get_owner_name(winner)
-			overlay_rule_label.text = "下一局开始前，你可以切换电脑数量、难度和风格，体验不同的压迫感。"
-			overlay_rule_label_2.text = "难度越高，敌军越快出手、越敢多派兵。"
-			overlay_rule_label_3.text = "进攻型偏爱压制玩家，防御型会保留更多守军；多家电脑也会互相厮杀。"
+			overlay_rule_label.text = "点击下方按钮重新开始，可更换地图再战。"
+			overlay_rule_label_2.text = ""
+			overlay_rule_label_3.text = ""
 			overlay_action_button.text = "重新开始"
 		_:
 			overlay_settings_grid.visible = true
