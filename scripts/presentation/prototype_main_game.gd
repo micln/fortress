@@ -7,14 +7,10 @@ const PrototypeEnemyAiServiceRef = preload("res://scripts/application/prototype_
 const PrototypeOrderDispatchServiceRef = preload("res://scripts/application/prototype_order_dispatch_service.gd")
 const PrototypeTransferArrivalServiceRef = preload("res://scripts/application/prototype_transfer_arrival_service.gd")
 const PrototypeCityViewRef = preload("res://scripts/presentation/prototype_city_view.gd")
+const AudioManagerRef = preload("res://scripts/presentation/audio_manager.gd")
+const BackgroundRendererRef = preload("res://scripts/presentation/background_renderer.gd")
+const CameraControllerRef = preload("res://scripts/presentation/camera_controller.gd")
 const UI_FONT: Font = preload("res://assets/fonts/NotoSansSC-Regular.otf")
-const MOBILE_MAP_WORLD_SCALE: Vector2 = Vector2(2.15, 2.0)
-const MOBILE_MAP_WORLD_PADDING: Vector2 = Vector2(460.0, 680.0)
-const DESKTOP_MAP_WORLD_SCALE: Vector2 = Vector2(1.12, 1.16)
-const DESKTOP_MAP_WORLD_PADDING: Vector2 = Vector2(100.0, 160.0)
-const MAP_WORLD_MIN_SIZE: Vector2 = Vector2(1200.0, 2200.0)
-const MAP_ZOOM_MIN: float = 0.75
-const MAP_ZOOM_MAX: float = 1.8
 const MAP_ZOOM_STEP: float = 0.1
 const MARCH_SPEED: float = 180.0
 const UNIT_RADIUS: float = 16.0
@@ -49,6 +45,9 @@ var _battle_service = PrototypeBattleServiceRef.new()
 var _enemy_ai_service = PrototypeEnemyAiServiceRef.new()
 var _order_dispatch_service = PrototypeOrderDispatchServiceRef.new()
 var _transfer_arrival_service = PrototypeTransferArrivalServiceRef.new()
+var _audio_manager = AudioManagerRef.new()
+var _background_renderer = BackgroundRendererRef.new()
+var _camera_controller = CameraControllerRef.new()
 var _cities: Array = []
 var _city_views: Dictionary = {}
 var _marching_units: Array = []
@@ -74,18 +73,7 @@ var _last_winner: int = PrototypeCityOwnerRef.NEUTRAL
 var _player_count: int = 5
 var _ai_difficulty: String = PrototypeEnemyAiServiceRef.DIFFICULTY_EASY
 var _ai_style: String = PrototypeEnemyAiServiceRef.STYLE_DEFENSIVE
-var _audio_ready: bool = false
-var _music_stream: AudioStreamWAV
-var _select_sfx_stream: AudioStreamWAV
-var _transfer_sfx_stream: AudioStreamWAV
-var _attack_sfx_stream: AudioStreamWAV
-var _capture_sfx_stream: AudioStreamWAV
-var _error_sfx_stream: AudioStreamWAV
-var _victory_sfx_stream: AudioStreamWAV
-var _defeat_sfx_stream: AudioStreamWAV
-var _map_world_size: Vector2 = Vector2.ZERO
-var _map_offset: Vector2 = Vector2.ZERO
-var _map_zoom: float = 1.0
+var _last_window_resize_frame: int = -1
 var _is_dragging_map: bool = false
 var _drag_candidate_active: bool = false
 var _drag_pointer_kind: String = ""
@@ -96,7 +84,6 @@ var _active_touch_points: Dictionary = {}
 var _is_pinching_map: bool = false
 var _pinch_last_distance: float = 0.0
 var _skip_selection_cancel_guard_count: int = 0
-var _last_window_resize_frame: int = -1
 var _order_hud_panel: PanelContainer
 var _order_hud_title_label: Label
 var _order_hud_body_label: Label
@@ -181,7 +168,15 @@ func _ready() -> void:
 	_apply_responsive_overlay_layout()
 	_apply_responsive_order_dialog_layout()
 	get_window().size_changed.connect(_on_window_size_changed)
-	_setup_audio()
+	_audio_manager.setup(bgm_player, sfx_player)
+	_audio_manager.initialize_audio()
+	_audio_manager.bgm_finished.connect(_on_bgm_finished)
+	_camera_controller.setup(
+		Callable(self, "_get_viewport_size"),
+		Callable(self, "_is_mobile_runtime"),
+		Callable(self, "_is_desktop_runtime"),
+		Callable(self, "_get_top_panel_bottom")
+	)
 	_setup_ai_controls()
 	_setup_order_hud_panel()
 	_setup_continuous_status_label()
@@ -194,7 +189,6 @@ func _ready() -> void:
 	pause_button.pressed.connect(_on_pause_button_pressed)
 	restart_button.pressed.connect(_on_restart_button_pressed)
 	overlay_action_button.pressed.connect(_on_overlay_action_button_pressed)
-	bgm_player.finished.connect(_on_bgm_finished)
 	order_dialog_layer.visible = false
 	_show_start_overlay()
 
@@ -224,7 +218,7 @@ func _handle_window_size_changed() -> void:
 	_apply_responsive_overlay_layout()
 	_apply_responsive_order_dialog_layout()
 	_resize_map_world_for_viewport()
-	_set_map_offset(_map_offset)
+	_camera_controller.set_offset(_camera_controller.map_offset)
 
 
 ## 桌面端启动时默认切到窗口最大化，保留系统窗口层级但尽量扩大可视区域。
@@ -252,6 +246,22 @@ func _is_desktop_runtime() -> bool:
 	if DisplayServer.get_name() == "headless":
 		return false
 	return true
+
+
+## 获取当前视口尺寸，供 CameraController 使用。
+##
+## 调用场景：CameraController 需要视口尺寸时。
+## 主要逻辑：返回当前视口的像素尺寸。
+func _get_viewport_size() -> Vector2:
+	return get_viewport_rect().size
+
+
+## 获取顶部面板底边偏移，供 CameraController 计算开局镜头位置。
+##
+## 调用场景：CameraController 计算初始偏移时。
+## 主要逻辑：返回顶部面板的 offset_bottom 值，用于计算安全区。
+func _get_top_panel_bottom() -> float:
+	return top_panel.offset_bottom
 
 
 ## 按当前窗口逻辑尺寸设置内容分辨率，避免高 DPI 设备把 UI 误缩小。
@@ -298,16 +308,11 @@ func _on_window_size_changed() -> void:
 ## 根据当前视口尺寸扩展地图世界尺寸，避免桌面拉大窗口后露出黑边。
 ##
 ## 调用场景：窗口尺寸变化时。
-## 主要逻辑：按当前视口计算目标地图尺寸，只做“扩张不收缩”，保证已有城市坐标始终有效且不被裁切。
+## 主要逻辑：按当前视口计算目标地图尺寸，只做"扩张不收缩"，保证已有城市坐标始终有效且不被裁切。
 func _resize_map_world_for_viewport() -> void:
 	if _cities.is_empty():
 		return
-	var viewport_size: Vector2 = get_viewport_rect().size
-	var target_size: Vector2 = _get_target_map_world_size(viewport_size)
-	_map_world_size = Vector2(
-		max(_map_world_size.x, target_size.x),
-		max(_map_world_size.y, target_size.y)
-	)
+	_camera_controller.apply_viewport_change()
 
 
 ## 按当前视口宽度调整顶部和底部 HUD，减少移动端对主战场可视空间的占用。
@@ -595,7 +600,13 @@ func _process(delta: float) -> void:
 ## 主要逻辑：先绘制城市间道路，再把每条行军单位渲染成一串沿路线排开的士兵；
 ## 规则层仍按整组人数结算，但表现层不再使用单个带数字的圆点。
 func _draw() -> void:
-	_draw_battlefield_background()
+	_background_renderer.draw_background(
+		self,
+		_camera_controller.map_world_size,
+		_camera_controller.map_offset,
+		_camera_controller.map_zoom,
+		func(world_pos): return _camera_controller.world_to_screen(world_pos)
+	)
 
 	for city in _cities:
 		for neighbor_id: int in city.neighbors:
@@ -603,13 +614,13 @@ func _draw() -> void:
 				continue
 
 			var target = _cities[neighbor_id]
-			var from_position: Vector2 = _get_screen_position(city.position)
-			var target_position: Vector2 = _get_screen_position(target.position)
+			var from_position: Vector2 = _camera_controller.world_to_screen(city.position)
+			var target_position: Vector2 = _camera_controller.world_to_screen(target.position)
 			var line_color := Color("48576a")
-			var line_width: float = max(3.0, 6.0 * _map_zoom)
+			var line_width: float = max(3.0, 6.0 * _camera_controller.map_zoom)
 			if city.city_id == _selected_city_id or target.city_id == _selected_city_id:
 				line_color = Color("f6d365")
-				line_width = max(5.0, 10.0 * _map_zoom)
+				line_width = max(5.0, 10.0 * _camera_controller.map_zoom)
 
 			draw_line(from_position, target_position, line_color, line_width, true)
 
@@ -627,13 +638,13 @@ func _draw_marching_unit_as_soldiers(unit: Dictionary) -> void:
 	if march_direction.length_squared() <= 0.0001:
 		march_direction = Vector2.RIGHT
 	var lane_direction: Vector2 = Vector2(-march_direction.y, march_direction.x)
-	var soldier_radius: float = max(5.0, SOLDIER_VISUAL_RADIUS * _map_zoom)
-	var soldier_spacing: float = max(10.0, SOLDIER_VISUAL_SPACING * _map_zoom)
+	var soldier_radius: float = max(5.0,SOLDIER_VISUAL_RADIUS * _camera_controller.map_zoom)
+	var soldier_spacing: float = max(10.0,SOLDIER_VISUAL_SPACING * _camera_controller.map_zoom)
 	var visible_count: int = min(int(unit["count"]), MAX_VISUAL_SOLDIERS_PER_UNIT)
-	var lane_offset: float = float(unit.get("visual_lane_offset", 0.0)) * _map_zoom
-	var front_position: Vector2 = _get_screen_position(_get_marching_unit_position(unit)) + lane_direction * lane_offset
+	var lane_offset: float = float(unit.get("visual_lane_offset", 0.0)) * _camera_controller.map_zoom
+	var front_position: Vector2 = _camera_controller.world_to_screen(_get_marching_unit_position(unit)) + lane_direction * lane_offset
 	var unit_color: Color = PrototypeCityOwnerRef.get_color(int(unit["owner"]))
-	var outline_width: float = max(1.0, 2.0 * _map_zoom)
+	var outline_width: float = max(1.0, 2.0 * _camera_controller.map_zoom)
 	for soldier_index: int in range(visible_count):
 		var soldier_position: Vector2 = front_position - march_direction * soldier_spacing * float(soldier_index)
 		draw_circle(soldier_position, soldier_radius, unit_color)
@@ -679,17 +690,17 @@ func _start_new_match() -> void:
 	_marching_units.clear()
 	order_dialog_layer.visible = false
 	_apply_ai_profile()
-	var viewport_size: Vector2 = get_viewport_rect().size
-	_map_zoom = 1.0
 	_active_touch_points.clear()
 	_end_pinch_zoom()
 	_cancel_map_drag_state()
-	_map_world_size = _get_target_map_world_size(viewport_size)
+	var viewport_size: Vector2 = get_viewport_rect().size
+	var target_world_size: Vector2 = _camera_controller.get_target_map_world_size(viewport_size)
+	_camera_controller.reset_for_new_match(target_world_size)
 	_cities = _preset_map_loader.build_map({
 		"player_count": _player_count,
 		"ai_difficulty": _ai_difficulty,
 		"ai_style": _ai_style
-	}, _map_world_size, _random)
+	}, _camera_controller.map_world_size, _random)
 	if _cities.is_empty():
 		var error_message: String = _preset_map_loader.get_last_error_message()
 		status_label.text = "地图装载失败，请检查预设地图配置。"
@@ -698,7 +709,7 @@ func _start_new_match() -> void:
 		_log_game_debug("map_load_failed", {"error_message": hint_label.text})
 		_refresh_view()
 		return
-	_center_map_offset()
+	_camera_controller.center_map(Callable(self, "_get_first_player_city"))
 	_spawn_city_views()
 	_log_game_debug("match_started", {
 		"player_count": _player_count,
@@ -754,13 +765,14 @@ func _on_city_pressed(city_id: int) -> void:
 		"city_name": clicked_city.name,
 		"owner": clicked_city.owner,
 		"selected_before": _selected_city_id,
-		"screen_position": _get_screen_position(clicked_city.position),
+		"screen_position": _camera_controller.world_to_screen(clicked_city.position),
 		"world_position": clicked_city.position
-	})
+})
+
 	if _selected_city_id == -1:
 		if clicked_city.owner != PrototypeCityOwnerRef.PLAYER:
 			status_label.text = "先点蓝色己方城市。"
-			_play_sfx(_error_sfx_stream)
+			_audio_manager.play_sfx_by_id("error")
 			return
 		_selected_city_id = city_id
 		_log_game_debug("city_selected", {
@@ -771,10 +783,9 @@ func _on_city_pressed(city_id: int) -> void:
 		})
 		status_label.text = "已选中 %s。现在点击一个目标城市，直接切换持续出兵任务。" % clicked_city.name
 		hint_label.text = _build_selected_city_hint(clicked_city)
-		_play_sfx(_select_sfx_stream)
+		_audio_manager.play_sfx_by_id("select")
 		_refresh_view()
 		return
-
 	if _selected_city_id == city_id:
 		_clear_selection_with_message("已取消选择。重新点一个蓝色城市即可。")
 		return
@@ -782,7 +793,7 @@ func _on_city_pressed(city_id: int) -> void:
 	var source = _cities[_selected_city_id]
 	if clicked_city.owner != source.owner and not source.is_neighbor(city_id):
 		status_label.text = "%s 和 %s 没有道路连接，请点相邻城市。" % [source.name, clicked_city.name]
-		_play_sfx(_error_sfx_stream)
+		_audio_manager.play_sfx_by_id("error")
 		return
 
 	_toggle_player_continuous_order(_selected_city_id, city_id)
@@ -875,10 +886,10 @@ func _execute_transfer(source_id: int, target_id: int, moving_count: int, keep_s
 	if result.get("success", false):
 		_launch_marching_unit(source_id, target_id, int(result["owner"]), int(result["count"]), "transfer", true)
 		if update_status_text:
-			_play_sfx(_transfer_sfx_stream)
+			_audio_manager.play_sfx_by_id("transfer")
 	else:
 		if update_status_text:
-			_play_sfx(_error_sfx_stream)
+			_audio_manager.play_sfx_by_id("error")
 	_refresh_view()
 
 
@@ -902,7 +913,7 @@ func _execute_attack(source_id: int, target_id: int, troop_count: int, is_player
 		})
 		if update_status_text:
 			status_label.text = "%s 没有士兵可以出征。" % source.name
-			_play_sfx(_error_sfx_stream)
+			_audio_manager.play_sfx_by_id("error")
 			_clear_selection_with_message(status_label.text)
 		return
 
@@ -925,7 +936,7 @@ func _execute_attack(source_id: int, target_id: int, troop_count: int, is_player
 		status_label.text = result.get("message", "")
 	if not result.get("success", false):
 		if update_status_text:
-			_play_sfx(_error_sfx_stream)
+			_audio_manager.play_sfx_by_id("error")
 		_refresh_view()
 		return
 
@@ -936,7 +947,7 @@ func _execute_attack(source_id: int, target_id: int, troop_count: int, is_player
 			hint_label.text = "有电脑势力已经出兵，注意观察道路上的行军单位。"
 		else:
 			hint_label.text = "部队已经出发。你可以继续选择其他城市。"
-		_play_sfx(_attack_sfx_stream)
+		_audio_manager.play_sfx_by_id("attack")
 	_refresh_view()
 
 
@@ -984,7 +995,7 @@ func _refresh_view() -> void:
 	for city in _cities:
 		var city_view = _city_views.get(city.city_id)
 		if city_view != null:
-			city_view.sync_from_state(city, city.city_id == _selected_city_id, _get_screen_position(city.position))
+			city_view.sync_from_state(city, city.city_id == _selected_city_id, _camera_controller.world_to_screen(city.position))
 	var pause_suffix: String = " | 已暂停" if _manual_paused else ""
 	if get_viewport_rect().size.x <= NARROW_OVERLAY_BREAKPOINT:
 		ai_config_label.text = "%d方 | %s | %s%s" % [_player_count, _get_ai_difficulty_name(_ai_difficulty), _get_ai_style_name(_ai_style), pause_suffix]
@@ -1017,9 +1028,9 @@ func _check_game_over() -> void:
 	status_label.text = "%s 获胜。" % PrototypeCityOwnerRef.get_owner_name(winner)
 	hint_label.text = "点击下方“重新开始”，或在面板里直接再开一局。"
 	if winner == PrototypeCityOwnerRef.PLAYER:
-		_play_sfx(_victory_sfx_stream)
+		_audio_manager.play_sfx_by_id("victory")
 	else:
-		_play_sfx(_defeat_sfx_stream)
+		_audio_manager.play_sfx_by_id("defeat")
 	_show_game_over_overlay(winner)
 
 
@@ -1089,7 +1100,7 @@ func _refresh_upgrade_buttons() -> void:
 	_apply_upgrade_button_state(upgrade_level_button, city, options[PrototypeBattleServiceRef.UPGRADE_LEVEL], "升级")
 	_apply_upgrade_button_state(upgrade_defense_button, city, options[PrototypeBattleServiceRef.UPGRADE_DEFENSE], "升防")
 	_apply_upgrade_button_state(upgrade_production_button, city, options[PrototypeBattleServiceRef.UPGRADE_PRODUCTION], "升产")
-	_position_floating_upgrade_panel(_get_screen_position(city.position))
+	_position_floating_upgrade_panel(_camera_controller.world_to_screen(city.position))
 	floating_upgrade_panel.visible = true
 
 
@@ -1144,11 +1155,11 @@ func _execute_upgrade(city_id: int, upgrade_type: String, is_player_action: bool
 			hint_label.text = "升级已完成。你可以继续升城，或点目标城市发起行动。"
 		else:
 			hint_label.text = "%s 正在经营后方城市，准备下一轮行动。" % PrototypeCityOwnerRef.get_owner_name(city.owner)
-		_play_sfx(_capture_sfx_stream)
+		_audio_manager.play_sfx_by_id("capture")
 	else:
 		if is_player_action:
 			hint_label.text = "升级会直接消耗城内士兵，升完后本城会暂时更空。"
-		_play_sfx(_error_sfx_stream)
+		_audio_manager.play_sfx_by_id("error")
 	_refresh_view()
 
 
@@ -1194,7 +1205,7 @@ func _open_order_dialog(source_id: int, target_id: int, is_transfer: bool) -> vo
 	hint_label.text = "你可以慢慢调整人数，行军、产兵和电脑 AI 会暂时停止。"
 	_refresh_order_dialog()
 	_refresh_view()
-	_play_sfx(_select_sfx_stream)
+	_audio_manager.play_sfx_by_id("select")
 
 
 ## 刷新出兵数量对话框里的数字和按钮状态。
@@ -1286,7 +1297,7 @@ func _adjust_order_count(delta: int) -> void:
 	var max_count: int = _get_current_order_max_count()
 	_pending_order_count = clamp(_pending_order_count + delta, 1, max_count)
 	_refresh_order_dialog()
-	_play_sfx(_select_sfx_stream)
+	_audio_manager.play_sfx_by_id("select")
 
 
 ## 把当前出兵数量设置为总兵力的一半。
@@ -1299,7 +1310,7 @@ func _on_order_half_button_pressed() -> void:
 	var max_count: int = _get_current_order_max_count()
 	_pending_order_count = max(1, int(ceil(float(max_count) * 0.5)))
 	_refresh_order_dialog()
-	_play_sfx(_select_sfx_stream)
+	_audio_manager.play_sfx_by_id("select")
 
 
 ## 把当前出兵数量设置为全部可派兵力。
@@ -1311,7 +1322,7 @@ func _on_order_full_button_pressed() -> void:
 		return
 	_pending_order_count = _get_current_order_max_count()
 	_refresh_order_dialog()
-	_play_sfx(_select_sfx_stream)
+	_audio_manager.play_sfx_by_id("select")
 
 
 ## 把当前出兵数量设置为系统推荐值。
@@ -1323,7 +1334,7 @@ func _on_order_recommend_button_pressed() -> void:
 		return
 	_pending_order_count = int(_pending_order["recommended_count"])
 	_refresh_order_dialog()
-	_play_sfx(_select_sfx_stream)
+	_audio_manager.play_sfx_by_id("select")
 
 
 ## 把当前出兵数量设置为“尽量多出，但源城市留 1 人”。
@@ -1336,7 +1347,7 @@ func _on_order_keep_one_button_pressed() -> void:
 	var max_count: int = _get_current_order_max_count()
 	_pending_order_count = max(1, max_count - 1)
 	_refresh_order_dialog()
-	_play_sfx(_select_sfx_stream)
+	_audio_manager.play_sfx_by_id("select")
 
 
 ## 取消当前出兵数量弹窗。
@@ -1532,7 +1543,7 @@ func _resolve_single_marching_collision(left_index: int, right_index: int) -> vo
 		hint_label.text = "道路上的敌对部队会先互相抵消，剩余兵力才会继续前进。"
 		_marching_units.remove_at(right_index)
 		_marching_units.remove_at(left_index)
-		_play_sfx(_attack_sfx_stream)
+		_audio_manager.play_sfx_by_id("attack")
 		return
 
 	var winner_owner: int = int(result["winner_owner"])
@@ -1558,7 +1569,7 @@ func _resolve_single_marching_collision(left_index: int, right_index: int) -> vo
 	]
 	hint_label.text = "道路上的敌对部队会先互相抵消，剩余兵力才会继续前进。"
 	_marching_units.remove_at(right_index if surviving_index == left_index else left_index)
-	_play_sfx(_attack_sfx_stream)
+	_audio_manager.play_sfx_by_id("attack")
 
 
 ## 对同一帧到达的行军单位做确定性排序。
@@ -1608,12 +1619,12 @@ func _resolve_marching_unit_arrival(unit: Dictionary) -> void:
 		if result.get("retook_after_loss", false):
 			hint_label.text = "目标城曾在途中失守，但迟到援军到达后已经按实时兵力重新交战。"
 			if result.get("captured", false):
-				_play_sfx(_capture_sfx_stream)
+				_audio_manager.play_sfx_by_id("capture")
 			else:
-				_play_sfx(_attack_sfx_stream)
+				_audio_manager.play_sfx_by_id("attack")
 		else:
 			hint_label.text = "援军已经到达。继续观察道路上的行军，或再次下达命令。"
-			_play_sfx(_transfer_sfx_stream)
+			_audio_manager.play_sfx_by_id("transfer")
 	else:
 		result = _battle_service.resolve_attack_arrival(target, int(unit["owner"]), int(unit["count"]))
 		_log_game_debug("march_arrival_attack", {
@@ -1632,11 +1643,11 @@ func _resolve_marching_unit_arrival(unit: Dictionary) -> void:
 			status_label.text = "%s 到达：%s" % [PrototypeCityOwnerRef.get_owner_name(int(unit["owner"])), result.get("message", "")]
 
 		if result.get("captured", false):
-			_play_sfx(_capture_sfx_stream)
+			_audio_manager.play_sfx_by_id("capture")
 		elif result.get("reinforced", false):
-			_play_sfx(_transfer_sfx_stream)
+			_audio_manager.play_sfx_by_id("transfer")
 		else:
-			_play_sfx(_attack_sfx_stream)
+			_audio_manager.play_sfx_by_id("attack")
 
 		if bool(unit["is_player_action"]):
 			hint_label.text = "行军抵达后才会真正结算战斗。"
@@ -1667,58 +1678,6 @@ func _get_marching_unit_position(unit: Dictionary) -> Vector2:
 	return _cities[int(unit["source_id"])].position
 
 
-## 把世界坐标转换为当前屏幕坐标。
-##
-## 调用场景：绘制道路与行军、摆放城市节点、定位升级面板时。
-## 主要逻辑：统一叠加当前地图偏移，避免战场元素各自维护一套平移结果。
-func _get_screen_position(world_position: Vector2) -> Vector2:
-	return _get_screen_delta(world_position) + _map_offset
-
-
-## 把当前屏幕坐标还原为地图世界坐标。
-##
-## 调用场景：点击命中测试、空白取消判定、拖拽后继续选城时。
-## 主要逻辑：用屏幕点减去地图偏移，确保点击判定永远落在同一套世界坐标系里。
-func _get_world_position(screen_position: Vector2) -> Vector2:
-	return (screen_position - _map_offset) / _map_zoom
-
-
-## 把世界坐标系中的距离向量转换为当前屏幕距离。
-##
-## 调用场景：世界长度映射到屏幕长度时，例如背景色斑尺寸、道路宽度缩放等。
-## 主要逻辑：只处理缩放，不叠加平移偏移，避免把向量计算误当成坐标计算。
-func _get_screen_delta(world_delta: Vector2) -> Vector2:
-	return world_delta * _map_zoom
-
-
-## 把大地图初始平移到屏幕中央附近，避免开局直接贴在左上角。
-##
-## 调用场景：新开一局生成地图之后。
-## 主要逻辑：先按世界尺寸和视口尺寸计算中心偏移，再把镜头轻微偏向玩家出生城，
-## 尽量让首屏把玩家主城放到顶部 HUD 下方的安全区里，最后经过边界钳制得到合法初始位置。
-func _center_map_offset() -> void:
-	var viewport_size: Vector2 = get_viewport_rect().size
-	_map_offset = (viewport_size - _get_scaled_map_world_size()) * 0.5
-	_map_offset = _bias_initial_offset_towards_player_city(_map_offset, viewport_size)
-	_map_offset = _clamp_map_offset(_map_offset)
-
-
-## 让开局镜头轻微偏向玩家出生城，减少首屏被顶部 HUD 挡住的概率。
-##
-## 调用场景：新开一局计算初始地图偏移时。
-## 主要逻辑：找到玩家第一座城市，把它尽量对齐到“左上可视安全区”目标点附近；
-## 若当前对局还没有玩家城，则回退为原始居中偏移。
-func _bias_initial_offset_towards_player_city(base_offset: Vector2, viewport_size: Vector2) -> Vector2:
-	var player_city = _get_first_player_city()
-	if player_city == null:
-		return base_offset
-	var safe_anchor: Vector2 = Vector2(
-		min(viewport_size.x * 0.28, 260.0),
-		max(190.0, top_panel.offset_bottom + 70.0)
-	)
-	return safe_anchor - _get_screen_delta(player_city.position)
-
-
 ## 返回当前战局中的第一座玩家城市，供开局镜头定位使用。
 ##
 ## 调用场景：计算初始地图偏移、后续如需把镜头聚焦到玩家主城时。
@@ -1728,22 +1687,6 @@ func _get_first_player_city():
 		if city.owner == PrototypeCityOwnerRef.PLAYER:
 			return city
 	return null
-
-
-## 根据视口尺寸计算目标地图世界尺寸，统一地图大小策略，避免各处散落魔法数字。
-##
-## 调用场景：新开一局初始化地图尺寸、窗口尺寸变化时扩展地图尺寸。
-## 主要逻辑：地图至少比视口更大（固定留白 + 比例放大），确保拖拽浏览空间和无黑边背景覆盖。
-func _get_target_map_world_size(viewport_size: Vector2) -> Vector2:
-	var world_scale: Vector2 = DESKTOP_MAP_WORLD_SCALE
-	var world_padding: Vector2 = DESKTOP_MAP_WORLD_PADDING
-	if _is_mobile_touch_runtime():
-		world_scale = MOBILE_MAP_WORLD_SCALE
-		world_padding = MOBILE_MAP_WORLD_PADDING
-	return Vector2(
-		max(MAP_WORLD_MIN_SIZE.x, max(viewport_size.x + world_padding.x, viewport_size.x * world_scale.x)),
-		max(MAP_WORLD_MIN_SIZE.y, max(viewport_size.y + world_padding.y, viewport_size.y * world_scale.y))
-	)
 
 
 ## 判断当前是否应采用移动端地图尺度策略。
@@ -1756,35 +1699,12 @@ func _is_mobile_touch_runtime() -> bool:
 	return not _is_desktop_runtime()
 
 
-## 对地图偏移做边界钳制，防止玩家把整个战场拖出屏幕。
-##
-## 调用场景：初始化偏移、拖拽更新位置时。
-## 主要逻辑：限制 X/Y 偏移范围，让世界矩形始终覆盖住整个视口。
-func _clamp_map_offset(offset: Vector2) -> Vector2:
-	var viewport_size: Vector2 = get_viewport_rect().size
-	var scaled_map_size: Vector2 = _get_scaled_map_world_size()
-	var min_offset_x: float = min(0.0, viewport_size.x - scaled_map_size.x)
-	var min_offset_y: float = min(0.0, viewport_size.y - scaled_map_size.y)
-	return Vector2(
-		clamp(offset.x, min_offset_x, 0.0),
-		clamp(offset.y, min_offset_y, 0.0)
-	)
-
-
-## 返回当前缩放后的地图世界尺寸。
-##
-## 调用场景：地图边界钳制、背景绘制、居中偏移计算。
-## 主要逻辑：把逻辑世界尺寸乘以当前缩放倍率，得到真实占据的屏幕尺寸。
-func _get_scaled_map_world_size() -> Vector2:
-	return _map_world_size * _map_zoom
-
-
 ## 更新地图偏移并同步所有依赖屏幕坐标的表现节点。
 ##
 ## 调用场景：地图拖拽、开局居中、窗口尺寸变化后的重新钳制。
 ## 主要逻辑：统一刷新城市视图、升级面板和战场重绘，避免平移后出现道路/城市/按钮错位。
 func _set_map_offset(offset: Vector2) -> void:
-	_map_offset = _clamp_map_offset(offset)
+	_camera_controller.set_offset(offset)
 	if is_node_ready():
 		_refresh_view()
 
@@ -1794,13 +1714,7 @@ func _set_map_offset(offset: Vector2) -> void:
 ## 调用场景：桌面滚轮缩放、移动端双指缩放。
 ## 主要逻辑：先记录锚点对应的旧世界坐标，再更新缩放倍率并反算偏移，最后统一走边界钳制。
 func _set_map_zoom(next_zoom: float, anchor_screen_position: Vector2) -> void:
-	var clamped_zoom: float = clamp(next_zoom, MAP_ZOOM_MIN, MAP_ZOOM_MAX)
-	if is_equal_approx(clamped_zoom, _map_zoom):
-		return
-	var world_anchor_before_zoom: Vector2 = _get_world_position(anchor_screen_position)
-	_map_zoom = clamped_zoom
-	var next_offset: Vector2 = anchor_screen_position - _get_screen_delta(world_anchor_before_zoom)
-	_set_map_offset(next_offset)
+	_camera_controller.set_zoom(next_zoom, anchor_screen_position)
 
 
 ## 根据输入位置判断当前是否允许开始拖拽地图。
@@ -1843,7 +1757,7 @@ func _update_map_drag(pointer_position: Vector2) -> bool:
 	_is_dragging_map = true
 	var delta: Vector2 = pointer_position - _drag_last_position
 	_drag_last_position = pointer_position
-	_set_map_offset(_map_offset + delta)
+	_set_map_offset(_camera_controller.map_offset + delta)
 	return true
 
 
@@ -1896,7 +1810,7 @@ func _log_all_city_positions() -> void:
 			"city_name": city.name,
 			"owner": city.owner,
 			"world_position": city.position,
-			"screen_position": _get_screen_position(city.position)
+			"screen_position": _camera_controller.world_to_screen(city.position)
 		})
 
 
@@ -2024,8 +1938,8 @@ func _show_play_state() -> void:
 	_log_game_debug("play_state_entered", {})
 	status_label.text = "先点蓝色城市，再点目标城市，直接创建持续出兵路线。"
 	hint_label.text = "同一路线再次点击可关闭；一个源城有多条路线时会轮流出兵。"
-	_play_sfx(_select_sfx_stream)
-	_play_bgm_if_needed()
+	_audio_manager.play_sfx_by_id("select")
+	_audio_manager.play_bgm_if_needed()
 	_refresh_view()
 
 
@@ -2512,11 +2426,11 @@ func _handle_mouse_wheel_zoom(event: InputEventMouseButton) -> bool:
 	if _manual_paused or not event.pressed:
 		return false
 	if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-		_set_map_zoom(_map_zoom + MAP_ZOOM_STEP, event.position)
+		_set_map_zoom(_camera_controller.map_zoom + MAP_ZOOM_STEP, event.position)
 		get_viewport().set_input_as_handled()
 		return true
 	if event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-		_set_map_zoom(_map_zoom - MAP_ZOOM_STEP, event.position)
+		_set_map_zoom(_camera_controller.map_zoom - MAP_ZOOM_STEP, event.position)
 		get_viewport().set_input_as_handled()
 		return true
 	return false
@@ -2550,7 +2464,7 @@ func _begin_pinch_zoom() -> void:
 ## 在双指手势过程中持续更新地图缩放倍率。
 ##
 ## 调用场景：`_handle_screen_drag_input()` 收到活动手指移动事件时。
-## 主要逻辑：使用“当前双指距离 / 上一帧双指距离”作为增量倍率，并以双指中心点作为缩放锚点。
+## 主要逻辑：使用"当前双指距离 / 上一帧双指距离"作为增量倍率，并以双指中心点作为缩放锚点。
 func _update_pinch_zoom() -> bool:
 	if not _is_pinching_map or _active_touch_points.size() < 2:
 		return false
@@ -2562,7 +2476,7 @@ func _update_pinch_zoom() -> bool:
 	var ratio: float = current_distance / _pinch_last_distance
 	_pinch_last_distance = current_distance
 	var center: Vector2 = (touch_pair[0] + touch_pair[1]) * 0.5
-	_set_map_zoom(_map_zoom * ratio, center)
+	_set_map_zoom(_camera_controller.map_zoom * ratio, center)
 	return true
 
 
@@ -2806,147 +2720,7 @@ func _get_active_ai_owners() -> Array[int]:
 ## 调用场景：主场景每次重绘时最先执行。
 ## 主要逻辑：先铺一层草地底色，再叠加不规则土地色块、分段草纹和极轻氛围块；全部使用确定性世界坐标，
 ## 不创建独立背景节点，也不在每帧随机生成，确保背景稳定地压在道路、城市和行军单位之下。
-func _draw_battlefield_background() -> void:
-	var world_rect: Rect2 = Rect2(Vector2.ZERO, _map_world_size)
-	var screen_rect: Rect2 = Rect2(_map_offset, _get_scaled_map_world_size())
-	_draw_battlefield_grass_base(screen_rect)
-	_draw_battlefield_earth_patches(world_rect)
-	_draw_battlefield_grass_stripes(world_rect)
-	_draw_battlefield_atmosphere_blocks(world_rect)
 
-
-## 绘制战场的主草地底层，作为四层背景的最底色。
-##
-## 调用场景：主场景每次重绘战场背景时。
-## 主要逻辑：用不透明草绿色先铺满整个可视战场，后续的土地色块和草纹都只做低强度叠加。
-func _draw_battlefield_grass_base(world_rect: Rect2) -> void:
-	draw_rect(world_rect, Color(0.42, 0.58, 0.31))
-
-
-## 绘制不规则的土地色块，用来打破单一草地底色。
-##
-## 调用场景：主场景重绘战场背景时，在草地底层之后执行。
-## 主要逻辑：使用固定的世界坐标比例生成软边多边形，色块 alpha 保持在低值范围内，避免像障碍或可点击区域。
-func _draw_battlefield_earth_patches(world_rect: Rect2) -> void:
-	var patch_defs: Array[Dictionary] = [
-		{"center_ratio": Vector2(0.16, 0.18), "size_ratio": Vector2(0.18, 0.10), "skew": Vector2(0.11, 0.03), "color": Color(0.56, 0.45, 0.26, 0.18)},
-		{"center_ratio": Vector2(0.44, 0.14), "size_ratio": Vector2(0.22, 0.11), "skew": Vector2(0.08, -0.02), "color": Color(0.58, 0.48, 0.30, 0.16)},
-		{"center_ratio": Vector2(0.73, 0.27), "size_ratio": Vector2(0.19, 0.09), "skew": Vector2(-0.10, 0.03), "color": Color(0.54, 0.43, 0.25, 0.17)},
-		{"center_ratio": Vector2(0.28, 0.56), "size_ratio": Vector2(0.24, 0.12), "skew": Vector2(0.06, 0.04), "color": Color(0.59, 0.49, 0.31, 0.15)},
-		{"center_ratio": Vector2(0.68, 0.74), "size_ratio": Vector2(0.18, 0.10), "skew": Vector2(-0.08, -0.03), "color": Color(0.55, 0.44, 0.27, 0.18)}
-	]
-	for patch_def in patch_defs:
-		var center_ratio: Vector2 = Vector2(patch_def["center_ratio"])
-		var size_ratio: Vector2 = Vector2(patch_def["size_ratio"])
-		var patch_center: Vector2 = world_rect.position + Vector2(world_rect.size.x * center_ratio.x, world_rect.size.y * center_ratio.y)
-		var patch_size: Vector2 = Vector2(world_rect.size.x * size_ratio.x, world_rect.size.y * size_ratio.y)
-		var patch_skew: Vector2 = Vector2(patch_def["skew"])
-		var patch_color: Color = patch_def["color"]
-		_draw_battlefield_patch_blob(patch_center, patch_size, patch_skew, patch_color)
-
-
-## 绘制单个土地色块的软边多边形，供背景土地层复用。
-##
-## 调用场景：战场背景的土地色块层被重绘时。
-## 主要逻辑：根据给定中心、尺寸和偏移拼出一个不规则闭合多边形，并把它投到当前屏幕坐标上绘制。
-func _draw_battlefield_patch_blob(world_center: Vector2, world_size: Vector2, skew: Vector2, color: Color) -> void:
-	var half_size: Vector2 = world_size * 0.5
-	var world_points := PackedVector2Array([
-		world_center + Vector2(-half_size.x * 1.05, -half_size.y * 0.20),
-		world_center + Vector2(-half_size.x * 0.30, -half_size.y * 0.82) + skew * 0.15,
-		world_center + Vector2(half_size.x * 0.58, -half_size.y * 0.52) + skew,
-		world_center + Vector2(half_size.x * 0.86, half_size.y * 0.14) + skew * 0.55,
-		world_center + Vector2(half_size.x * 0.20, half_size.y * 0.84) - skew * 0.05,
-		world_center + Vector2(-half_size.x * 0.42, half_size.y * 0.62) - skew * 0.28
-	])
-	var screen_points := PackedVector2Array()
-	for point: Vector2 in world_points:
-		screen_points.append(_get_screen_position(point))
-	draw_colored_polygon(screen_points, color)
-
-
-## 绘制更自然的分段草纹，让战场不只是一整块平涂草地。
-##
-## 调用场景：主场景重绘战场背景时，在土地色块层之后执行。
-## 主要逻辑：用固定的世界坐标曲线分成若干短段，段与段之间保留间隙，形成自然但不抢眼的草纹。
-func _draw_battlefield_grass_stripes(world_rect: Rect2) -> void:
-	var stripe_defs: Array[Dictionary] = [
-		{"y_ratio": 0.12, "amplitude": 18.0, "phase": 0.0, "segment_length": 88.0, "gap_length": 54.0, "thickness": 12.0, "offset": -60.0, "color": Color(0.54, 0.67, 0.37, 0.18)},
-		{"y_ratio": 0.28, "amplitude": 14.0, "phase": 96.0, "segment_length": 76.0, "gap_length": 48.0, "thickness": 10.0, "offset": 24.0, "color": Color(0.57, 0.69, 0.40, 0.16)},
-		{"y_ratio": 0.48, "amplitude": 20.0, "phase": 188.0, "segment_length": 84.0, "gap_length": 62.0, "thickness": 11.0, "offset": -20.0, "color": Color(0.50, 0.64, 0.34, 0.15)},
-		{"y_ratio": 0.70, "amplitude": 16.0, "phase": 310.0, "segment_length": 80.0, "gap_length": 58.0, "thickness": 9.0, "offset": 48.0, "color": Color(0.58, 0.71, 0.42, 0.14)}
-	]
-	for stripe_def in stripe_defs:
-		_draw_battlefield_grass_stripe(world_rect, stripe_def)
-
-
-## 绘制单条分段草纹，供背景草纹层复用。
-##
-## 调用场景：战场背景的草纹层被重绘时。
-## 主要逻辑：按固定参数把一条波动草纹切成多个短段，只保留低对比的局部纹理，避免看起来像道路。
-func _draw_battlefield_grass_stripe(world_rect: Rect2, stripe_def: Dictionary) -> void:
-	var base_y: float = world_rect.position.y + world_rect.size.y * float(stripe_def["y_ratio"])
-	var amplitude: float = float(stripe_def["amplitude"])
-	var phase: float = float(stripe_def["phase"])
-	var segment_length: float = float(stripe_def["segment_length"])
-	var gap_length: float = float(stripe_def["gap_length"])
-	var thickness: float = max(4.0, float(stripe_def["thickness"]) * _map_zoom)
-	var offset_x: float = float(stripe_def["offset"])
-	var color: Color = stripe_def["color"]
-	var x: float = world_rect.position.x + offset_x
-	var end_x: float = world_rect.position.x + world_rect.size.x + segment_length
-	var segment_index: int = 0
-	while x < end_x:
-		var segment_end_x: float = min(x + segment_length, end_x)
-		if (segment_index + int(round(float(stripe_def["y_ratio"]) * 10.0))) % 3 != 1:
-			var start_point: Vector2 = _get_battlefield_grass_stripe_point(x, base_y, amplitude, phase)
-			var mid_x: float = (x + segment_end_x) * 0.5
-			var mid_point: Vector2 = _get_battlefield_grass_stripe_point(mid_x, base_y, amplitude, phase)
-			var end_point: Vector2 = _get_battlefield_grass_stripe_point(segment_end_x, base_y, amplitude, phase)
-			draw_line(_get_screen_position(start_point), _get_screen_position(mid_point), color, thickness, true)
-			draw_line(_get_screen_position(mid_point), _get_screen_position(end_point), color, thickness, true)
-		x += segment_length + gap_length
-		segment_index += 1
-
-
-## 计算单条草纹上的曲线采样点，确保所有草纹都来自确定性的世界坐标。
-##
-## 调用场景：背景草纹层在绘制每个短段时。
-## 主要逻辑：用固定频率的正弦和余弦叠加出轻微波动，让草纹更像自然起伏而不是直线。
-func _get_battlefield_grass_stripe_point(x_position: float, base_y: float, amplitude: float, phase: float) -> Vector2:
-	var wave_y: float = base_y
-	wave_y += sin((x_position + phase) / 175.0) * amplitude
-	wave_y += cos((x_position + phase) / 121.0) * amplitude * 0.25
-	return Vector2(x_position, wave_y)
-
-
-## 绘制极轻的氛围块，用来增加战场背景的层次感。
-##
-## 调用场景：主场景重绘战场背景时，在草纹层之后执行。
-## 主要逻辑：用几块低透明度的软圆块点缀边缘与空旷区域，颜色和透明度都保持极低，避免干扰道路和城市识别。
-func _draw_battlefield_atmosphere_blocks(world_rect: Rect2) -> void:
-	var block_defs: Array[Dictionary] = [
-		{"center_ratio": Vector2(0.10, 0.20), "radius": 88.0, "skew": Vector2(38.0, -14.0), "color": Color(0.74, 0.80, 0.56, 0.09)},
-		{"center_ratio": Vector2(0.38, 0.84), "radius": 72.0, "skew": Vector2(-26.0, 18.0), "color": Color(0.67, 0.75, 0.48, 0.08)},
-		{"center_ratio": Vector2(0.62, 0.12), "radius": 64.0, "skew": Vector2(20.0, 18.0), "color": Color(0.72, 0.77, 0.54, 0.07)},
-		{"center_ratio": Vector2(0.84, 0.56), "radius": 78.0, "skew": Vector2(-34.0, -16.0), "color": Color(0.63, 0.73, 0.46, 0.08)}
-	]
-	for block_def in block_defs:
-		var center_ratio: Vector2 = Vector2(block_def["center_ratio"])
-		var world_center: Vector2 = world_rect.position + Vector2(world_rect.size.x * center_ratio.x, world_rect.size.y * center_ratio.y)
-		var radius: float = float(block_def["radius"])
-		var skew: Vector2 = Vector2(block_def["skew"])
-		var color: Color = block_def["color"]
-		_draw_battlefield_soft_block(world_center, radius, skew, color)
-
-
-## 绘制单个极轻氛围块，供背景气氛层复用。
-##
-## 调用场景：战场背景的氛围块层被重绘时。
-## 主要逻辑：先用一枚大软圆建立氛围，再偏移叠加一枚更小的圆，形成更自然的云状背景块。
-func _draw_battlefield_soft_block(world_center: Vector2, world_radius: float, skew: Vector2, color: Color) -> void:
-	draw_circle(_get_screen_position(world_center), world_radius * _map_zoom, color)
-	draw_circle(_get_screen_position(world_center + skew), world_radius * 0.72 * _map_zoom, color.lerp(Color.WHITE, 0.06))
 
 
 ## 处理底部暂停按钮。
@@ -2960,115 +2734,14 @@ func _on_pause_button_pressed() -> void:
 	_pause_gameplay()
 
 
-## 初始化背景音乐和操作音效资源。
-##
-## 调用场景：主场景首次进入树时。
-## 主要逻辑：Web 平台为兼容移动端浏览器音频限制会禁用内置音效；其他平台使用代码生成短音效与循环旋律。
-func _setup_audio() -> void:
-	if OS.has_feature("web"):
-		_audio_ready = false
-		return
-
-	_music_stream = _create_melody_stream([262.0, 330.0, 392.0, 330.0, 440.0, 392.0, 330.0, 294.0], 0.22, 0.16)
-	_select_sfx_stream = _create_tone_stream(784.0, 0.09, 0.22)
-	_transfer_sfx_stream = _create_two_tone_stream(523.0, 659.0, 0.08, 0.18)
-	_attack_sfx_stream = _create_two_tone_stream(392.0, 294.0, 0.07, 0.2)
-	_capture_sfx_stream = _create_two_tone_stream(659.0, 988.0, 0.09, 0.22)
-	_error_sfx_stream = _create_tone_stream(220.0, 0.11, 0.18)
-	_victory_sfx_stream = _create_melody_stream([523.0, 659.0, 784.0, 1046.0], 0.12, 0.24)
-	_defeat_sfx_stream = _create_melody_stream([392.0, 330.0, 262.0], 0.18, 0.2)
-	_audio_ready = true
-
-
-## 在背景音乐未播放时启动循环旋律。
-##
-## 调用场景：开始游戏、重开后重新进入对局。
-## 主要逻辑：避免重复调用 `play()` 打断正在播放的音乐。
-func _play_bgm_if_needed() -> void:
-	if not _audio_ready or bgm_player.playing:
-		return
-	bgm_player.stream = _music_stream
-	bgm_player.play()
-
-
 ## 背景音乐播放结束后自动续播。
 ##
-## 调用场景：`AudioStreamPlayer.finished` 信号触发时。
+## 调用场景：AudioStreamPlayer.finished 信号触发时。
 ## 主要逻辑：仅在对局处于进行状态时重播，避免菜单遮罩阶段持续响个不停。
 func _on_bgm_finished() -> void:
 	if not _game_started or _game_over:
 		return
-	_play_bgm_if_needed()
+	_audio_manager.play_bgm_if_needed()
 
 
-## 播放一段短音效流。
-##
-## 调用场景：所有用户操作与关键战斗反馈。
-## 主要逻辑：把生成好的 WAV 流挂到 SFX 播放器上并立即播放；若音频未初始化则直接跳过。
-func _play_sfx(stream: AudioStreamWAV) -> void:
-	if not _audio_ready or stream == null:
-		return
-	sfx_player.stream = stream
-	sfx_player.play()
 
-
-## 生成单音短音效流。
-##
-## 调用场景：选择、错误等简单提示音创建时。
-## 主要逻辑：把给定频率、时长和音量包装成一个只有单个音高的 WAV。
-func _create_tone_stream(frequency: float, duration: float, volume: float) -> AudioStreamWAV:
-	return _create_melody_stream([frequency], duration, volume)
-
-
-## 生成包含两个音高的短音效流。
-##
-## 调用场景：运兵、进攻、占城等需要更强识别度的提示音创建时。
-## 主要逻辑：按顺序拼接两个音高，形成更明显的听觉差异。
-func _create_two_tone_stream(first_frequency: float, second_frequency: float, duration: float, volume: float) -> AudioStreamWAV:
-	return _create_melody_stream([first_frequency, second_frequency], duration, volume)
-
-
-## 根据一组音高序列生成可播放的 WAV 音频流。
-##
-## 调用场景：背景音乐和各类音效初始化时。
-## 主要逻辑：按音符序列采样正弦波，并对每个音符做淡入淡出，避免爆音和断点杂音。
-func _create_melody_stream(frequencies: Array[float], note_duration: float, volume: float) -> AudioStreamWAV:
-	var sample_rate: int = 22050
-	var pcm_data: PackedByteArray = PackedByteArray()
-
-	for frequency: float in frequencies:
-		var note_bytes: PackedByteArray = _append_note_bytes(frequency, note_duration, volume, sample_rate)
-		pcm_data.append_array(note_bytes)
-
-	var stream := AudioStreamWAV.new()
-	stream.format = AudioStreamWAV.FORMAT_16_BITS
-	stream.mix_rate = sample_rate
-	stream.stereo = false
-	stream.data = pcm_data
-	return stream
-
-
-## 为单个音符生成一段 16 位 PCM 字节数据。
-##
-## 调用场景：旋律流构建时逐个音符调用。
-## 主要逻辑：按采样率逐点生成正弦波，并在首尾加包络衰减，让短音频听感更柔和。
-func _append_note_bytes(frequency: float, duration: float, volume: float, sample_rate: int) -> PackedByteArray:
-	var total_samples: int = max(1, int(duration * sample_rate))
-	var fade_samples: int = max(1, min(int(floor(float(total_samples) / 4.0)), int(sample_rate * 0.02)))
-	var bytes: PackedByteArray = PackedByteArray()
-
-	for sample_index: int in range(total_samples):
-		var envelope: float = 1.0
-		if sample_index < fade_samples:
-			envelope = float(sample_index) / float(fade_samples)
-		elif sample_index > total_samples - fade_samples:
-			envelope = float(total_samples - sample_index) / float(fade_samples)
-
-		var phase: float = TAU * frequency * float(sample_index) / float(sample_rate)
-		var sample_value: float = sin(phase) * volume * clamp(envelope, 0.0, 1.0)
-		var sample_int: int = int(clamp(sample_value, -1.0, 1.0) * 32767.0)
-		var packed_sample: int = sample_int & 0xffff
-		bytes.append(packed_sample & 0xff)
-		bytes.append((packed_sample >> 8) & 0xff)
-
-	return bytes
