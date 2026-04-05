@@ -4,9 +4,14 @@ const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner
 const PrototypeCityStateRef = preload("res://scripts/domain/prototype_city_state.gd")
 const PrototypeBattleServiceRef = preload("res://scripts/application/prototype_battle_service.gd")
 const PrototypeEnemyAiServiceRef = preload("res://scripts/application/prototype_enemy_ai_service.gd")
+const PrototypeOrderDispatchServiceRef = preload("res://scripts/application/prototype_order_dispatch_service.gd")
+const PrototypeTransferArrivalServiceRef = preload("res://scripts/application/prototype_transfer_arrival_service.gd")
 const PrototypeMapGeneratorRef = preload("res://scripts/application/prototype_map_generator.gd")
 const PrototypePresetMapDefinitionRef = preload("res://scripts/application/prototype_preset_map_definition.gd")
 const PrototypePresetMapLoaderRef = preload("res://scripts/application/prototype_preset_map_loader.gd")
+
+var _friendly_transfer_dispatch_test_target
+var _friendly_transfer_dispatch_test_count: int = 0
 
 
 ## 运行项目内的最小自定义测试集，并在全部通过后正常退出。
@@ -22,13 +27,19 @@ func _initialize() -> void:
 	_run_test("attack_arrival_equal_capture", Callable(self, "_test_attack_arrival_equal_capture"), failures)
 	_run_test("attack_arrival_fail", Callable(self, "_test_attack_arrival_fail"), failures)
 	_run_test("attack_arrival_neutral_empty_city", Callable(self, "_test_attack_arrival_neutral_empty_city"), failures)
+	_run_test("attack_arrival_occupied_empty_city_without_defense_block", Callable(self, "_test_attack_arrival_occupied_empty_city_without_defense_block"), failures)
 	_run_test("friendly_transfer", Callable(self, "_test_friendly_transfer"), failures)
+	_run_test("friendly_transfer_overflow", Callable(self, "_test_friendly_transfer_overflow"), failures)
+	_run_test("friendly_transfer_dispatches_each_arrival", Callable(self, "_test_friendly_transfer_dispatches_each_arrival"), failures)
 	_run_test("friendly_transfer_to_lost_city", Callable(self, "_test_friendly_transfer_to_lost_city"), failures)
 	_run_test("production", Callable(self, "_test_production"), failures)
 	_run_test("production_fractional_rate", Callable(self, "_test_production_fractional_rate"), failures)
 	_run_test("production_capacity", Callable(self, "_test_production_capacity"), failures)
+	_run_test("production_single_step_after_capacity_reopens", Callable(self, "_test_production_single_step_after_capacity_reopens"), failures)
+	_run_test("production_ready_count_when_full", Callable(self, "_test_production_ready_count_when_full"), failures)
 	_run_test("upgrade_level_success", Callable(self, "_test_upgrade_level_success"), failures)
 	_run_test("upgrade_defense_insufficient", Callable(self, "_test_upgrade_defense_insufficient"), failures)
+	_run_test("upgrade_production_step", Callable(self, "_test_upgrade_production_step"), failures)
 	_run_test("upgrade_production_cap", Callable(self, "_test_upgrade_production_cap"), failures)
 	_run_test("marching_encounter", Callable(self, "_test_marching_encounter"), failures)
 	_run_test("marching_encounter_draw", Callable(self, "_test_marching_encounter_draw"), failures)
@@ -38,6 +49,11 @@ func _initialize() -> void:
 	_run_test("enemy_ai_profile", Callable(self, "_test_enemy_ai_profile"), failures)
 	_run_test("enemy_ai_aggressive_not_player_only", Callable(self, "_test_enemy_ai_aggressive_not_player_only"), failures)
 	_run_test("enemy_ai_upgrade", Callable(self, "_test_enemy_ai_upgrade"), failures)
+	_run_test("continuous_order_dispatch_single_route", Callable(self, "_test_continuous_order_dispatch_single_route"), failures)
+	_run_test("continuous_order_dispatch_round_robin", Callable(self, "_test_continuous_order_dispatch_round_robin"), failures)
+	_run_test("continuous_order_target_owner_change_keeps_route", Callable(self, "_test_continuous_order_target_owner_change_keeps_route"), failures)
+	_run_test("continuous_order_remove_by_source", Callable(self, "_test_continuous_order_remove_by_source"), failures)
+	_run_test("continuous_order_full_city_can_dispatch_multiple_ready_production", Callable(self, "_test_continuous_order_full_city_can_dispatch_multiple_ready_production"), failures)
 	_run_test("map_multi_ai_spawn", Callable(self, "_test_map_multi_ai_spawn"), failures)
 	_run_test("map_connectivity", Callable(self, "_test_map_connectivity"), failures)
 	_run_test("preset_map_loader_builds_cities", Callable(self, "_test_preset_map_loader_builds_cities"), failures)
@@ -155,6 +171,17 @@ func _test_attack_arrival_neutral_empty_city() -> bool:
 	return result.get("captured", false) and target.owner == PrototypeCityOwnerRef.AI_OWNER_START and target.soldiers == 1
 
 
+## 验证已占领但守军为 0 的空城，不会因为防御值导致“有兵到达却无法占领”。
+##
+## 调用场景：持续出兵高频小股进攻时的规则回归测试。
+## 主要逻辑：构造一座归属敌方但守军为 0、防御为 3 的空城，检查 1 人到达即可占领。
+func _test_attack_arrival_occupied_empty_city_without_defense_block() -> bool:
+	var battle_service = PrototypeBattleServiceRef.new()
+	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 1, 20, 0, [0], 3, 1.0)
+	var result: Dictionary = battle_service.resolve_attack_arrival(target, PrototypeCityOwnerRef.PLAYER, 1)
+	return result.get("captured", false) and target.owner == PrototypeCityOwnerRef.PLAYER and target.soldiers == 1
+
+
 ## 验证己方城市点到己方城市时会执行运兵而不是攻击。
 ##
 ## 调用场景：友军操作规则回归测试。
@@ -166,6 +193,58 @@ func _test_friendly_transfer() -> bool:
 	var prepare_result: Dictionary = battle_service.prepare_transfer(source, target, 4)
 	var arrival_result: Dictionary = battle_service.resolve_transfer_arrival(target, PrototypeCityOwnerRef.PLAYER, int(prepare_result.get("count", 0)))
 	return bool(prepare_result.get("success", false)) and bool(arrival_result.get("success", false)) and source.soldiers == 3 and target.owner == PrototypeCityOwnerRef.PLAYER and target.soldiers == 9
+
+
+## 验证友军运兵到满员城市时，会返回溢出人数用于后续持续任务接力，而不是静默吞兵。
+##
+## 调用场景：中继城市满员但仍挂有对外持续任务时的规则回归测试。
+## 主要逻辑：构造目标城只剩 1 格容量却到达 3 人援军，检查实际接收 1 人、溢出 2 人并保留在返回结果中。
+func _test_friendly_transfer_overflow() -> bool:
+	var battle_service = PrototypeBattleServiceRef.new()
+	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.PLAYER, 1, 20, 19, [0])
+	var arrival_result: Dictionary = battle_service.resolve_transfer_arrival(target, PrototypeCityOwnerRef.PLAYER, 3)
+	return bool(arrival_result.get("success", false)) \
+		and int(arrival_result.get("received_count", -1)) == 1 \
+		and int(arrival_result.get("overflow_count", -1)) == 2 \
+		and target.soldiers == 20
+
+
+## 验证友军运兵到达会把每一名新增士兵都视为一次调度触发，而不是只在最终溢出时补派。
+##
+## 调用场景：`a -> b -> c` 中继链里，目标城既可能已满也可能持续收到外部援军时。
+## 主要逻辑：构造一座已满员的中继城，对它连续运入 2 人，并在每次到达后都立刻把 1 人继续派出；
+## 最终应保持中继城仍满员，同时统计到 2 次继续派发、0 次溢出损失。
+func _test_friendly_transfer_dispatches_each_arrival() -> bool:
+	var transfer_arrival_service = PrototypeTransferArrivalServiceRef.new()
+	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.PLAYER, 1, 20, 20, [0, 2])
+	_friendly_transfer_dispatch_test_target = target
+	_friendly_transfer_dispatch_test_count = 0
+	var arrival_result: Dictionary = transfer_arrival_service.resolve_friendly_transfer_arrival(
+		target,
+		2,
+		Callable(self, "_dispatch_friendly_transfer_test_soldier")
+	)
+	_friendly_transfer_dispatch_test_target = null
+	return bool(arrival_result.get("success", false)) \
+		and int(arrival_result.get("received_count", -1)) == 0 \
+		and int(arrival_result.get("forwarded_count", -1)) == 2 \
+		and int(arrival_result.get("overflow_count", -1)) == 0 \
+		and _friendly_transfer_dispatch_test_count == 2 \
+		and target.soldiers == 20
+
+
+## 为友军运兵逐兵调度测试提供一个可重复调用的显式回调。
+##
+## 调用场景：`_test_friendly_transfer_dispatches_each_arrival()` 把它传给运兵到达服务，模拟“到 1 人就继续派出 1 人”。
+## 主要逻辑：若测试目标城当前还有兵，就移除 1 人并累计一次派发次数；否则返回失败，模拟无法继续下发。
+func _dispatch_friendly_transfer_test_soldier() -> bool:
+	if _friendly_transfer_dispatch_test_target == null:
+		return false
+	if _friendly_transfer_dispatch_test_target.soldiers <= 0:
+		return false
+	_friendly_transfer_dispatch_test_target.remove_soldiers(1)
+	_friendly_transfer_dispatch_test_count += 1
+	return true
 
 
 ## 验证若运兵目标在途中失守，迟到援军会与当前守军重新交战。
@@ -225,6 +304,33 @@ func _test_production_capacity() -> bool:
 	return cities[0].soldiers == 20
 
 
+## 验证城市在同一秒内若因持续出兵腾出容量，可以继续把剩余产能兑换成更多士兵。
+##
+## 调用场景：高产能城市持续运兵/进攻时的时序回归测试。
+## 主要逻辑：先累计 2.1 的产能，再单步产 1 人、移走 1 人、继续尝试产兵，检查这一秒内总共能产出 2 人而不是只产 1 人。
+func _test_production_single_step_after_capacity_reopens() -> bool:
+	var city = PrototypeCityStateRef.new(0, "长安", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 34, [1], 3, 2.1)
+	city.accumulate_production_progress(1.0)
+	var first_produced: bool = city.try_produce_one_soldier()
+	city.remove_soldiers(1)
+	var second_produced: bool = city.try_produce_one_soldier()
+	return first_produced and second_produced and city.soldiers == 35
+
+
+## 验证城市即使已满员，也会保留并暴露本秒已累计完成的产兵次数，供持续出兵系统消费。
+##
+## 调用场景：满兵城市挂持续任务时的规则回归测试。
+## 主要逻辑：构造一座满员且产能为 3.0 的城市，累计 1 秒产能后检查可消费次数为 3；
+## 再手动消费 1 次，检查剩余可消费次数会同步减少。
+func _test_production_ready_count_when_full() -> bool:
+	var city = PrototypeCityStateRef.new(0, "长安", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 35, [1], 3, 3.0)
+	city.accumulate_production_progress(1.0)
+	var ready_before_consume: int = city.get_ready_production_count()
+	var consumed: bool = city.consume_one_ready_production()
+	var ready_after_consume: int = city.get_ready_production_count()
+	return ready_before_consume == 3 and consumed and ready_after_consume == 2
+
+
 ## 验证等级升级会扣除驻军并提升容量上限。
 ##
 ## 调用场景：城市升级系统回归测试。
@@ -247,15 +353,26 @@ func _test_upgrade_defense_insufficient() -> bool:
 	return not bool(result.get("success", true)) and city.defense == 2 and city.soldiers == 5
 
 
+## 验证每次产能升级都会带来明显的产兵速度提升。
+##
+## 调用场景：城市升级系统回归测试。
+## 主要逻辑：构造一座可升产的城市，检查一次升级后产能会从 1.0 提升到 1.4，而不是只有很小的 0.1/0.2 增幅。
+func _test_upgrade_production_step() -> bool:
+	var battle_service = PrototypeBattleServiceRef.new()
+	var city = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 20, [1], 2, 1.0)
+	var result: Dictionary = battle_service.upgrade_city(city, PrototypeBattleServiceRef.UPGRADE_PRODUCTION)
+	return bool(result.get("success", false)) and is_equal_approx(city.production_rate, 1.4)
+
+
 ## 验证产能达到上限后不能继续升级。
 ##
 ## 调用场景：城市升级系统回归测试。
 ## 主要逻辑：构造一座产能已满的城市，检查升级失败且产能保持不变。
 func _test_upgrade_production_cap() -> bool:
 	var battle_service = PrototypeBattleServiceRef.new()
-	var city = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 3, 55, 40, [1], 2, 2.4)
+	var city = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 3, 55, 40, [1], 2, 3.0)
 	var result: Dictionary = battle_service.upgrade_city(city, PrototypeBattleServiceRef.UPGRADE_PRODUCTION)
-	return not bool(result.get("success", true)) and is_equal_approx(city.production_rate, 2.4)
+	return not bool(result.get("success", true)) and is_equal_approx(city.production_rate, 3.0)
 
 
 ## 验证道路上两支不同势力行军部队相遇时，大兵团会吞掉小兵团并保留差值。
@@ -393,6 +510,105 @@ func _test_enemy_ai_upgrade() -> bool:
 	return not decision.is_empty() \
 		and int(decision.get("city_id", -1)) == 0 \
 		and String(decision.get("upgrade_type", "")) in [PrototypeBattleServiceRef.UPGRADE_LEVEL, PrototypeBattleServiceRef.UPGRADE_DEFENSE, PrototypeBattleServiceRef.UPGRADE_PRODUCTION]
+
+
+## 验证单条持续出兵路线在源城每次产兵后都会稳定返回一次派兵描述。
+##
+## 调用场景：持续出兵调度服务回归测试。
+## 主要逻辑：创建一条 `A -> B` 路线，检查调度结果会固定派出 1 人，并根据目标归属返回进攻模式。
+func _test_continuous_order_dispatch_single_route() -> bool:
+	var service = PrototypeOrderDispatchServiceRef.new()
+	var cities: Array = [
+		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 5, [1]),
+		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 1, 20, 3, [0])
+	]
+	service.ensure_continuous_order(0, 1)
+	var result: Dictionary = service.dispatch_for_source(cities, 0)
+	return bool(result.get("success", false)) \
+		and int(result.get("source_id", -1)) == 0 \
+		and int(result.get("target_id", -1)) == 1 \
+		and int(result.get("troop_count", 0)) == 1 \
+		and not bool(result.get("is_transfer", true))
+
+
+## 验证同一源城存在多条持续路线时，会按轮转顺序交替触发。
+##
+## 调用场景：持续出兵调度服务回归测试。
+## 主要逻辑：给同一源城注册两个目标，连续调度两次，检查目标编号会轮流切换而不是总打第一条。
+func _test_continuous_order_dispatch_round_robin() -> bool:
+	var service = PrototypeOrderDispatchServiceRef.new()
+	var cities: Array = [
+		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 6, [1, 2]),
+		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 1, 20, 3, [0]),
+		PrototypeCityStateRef.new(2, "C", Vector2.DOWN, PrototypeCityOwnerRef.PLAYER, 1, 20, 2, [0])
+	]
+	service.ensure_continuous_order(0, 1)
+	service.ensure_continuous_order(0, 2)
+	var first_result: Dictionary = service.dispatch_for_source(cities, 0)
+	var second_result: Dictionary = service.dispatch_for_source(cities, 0)
+	return bool(first_result.get("success", false)) \
+		and bool(second_result.get("success", false)) \
+		and int(first_result.get("target_id", -1)) == 1 \
+		and int(second_result.get("target_id", -1)) == 2
+
+
+## 验证目标城市归属变化后，持续路线不会丢失，只会动态切换运兵/进攻模式。
+##
+## 调用场景：持续出兵调度服务回归测试。
+## 主要逻辑：先让目标是敌城，再改成己方城，检查同一条路线仍然存在，且调度结果从进攻切成运兵。
+func _test_continuous_order_target_owner_change_keeps_route() -> bool:
+	var service = PrototypeOrderDispatchServiceRef.new()
+	var cities: Array = [
+		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 6, [1]),
+		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 1, 20, 3, [0])
+	]
+	service.ensure_continuous_order(0, 1)
+	var first_result: Dictionary = service.dispatch_for_source(cities, 0)
+	cities[1].owner = PrototypeCityOwnerRef.PLAYER
+	var second_result: Dictionary = service.dispatch_for_source(cities, 0)
+	return service.get_order_count_for_source(0) == 1 \
+		and not bool(first_result.get("is_transfer", true)) \
+		and bool(second_result.get("is_transfer", false))
+
+
+## 验证源城失守时可以一次性删除该源城发出的全部持续任务。
+##
+## 调用场景：城市换手后的持续任务清理回归测试。
+## 主要逻辑：给同一源城注册多条路线，模拟失守后调用按源城删除，检查任务数清零且返回删除数量正确。
+func _test_continuous_order_remove_by_source() -> bool:
+	var service = PrototypeOrderDispatchServiceRef.new()
+	service.ensure_continuous_order(0, 1)
+	service.ensure_continuous_order(0, 2)
+	service.ensure_continuous_order(1, 0)
+	var removed_count: int = service.remove_orders_by_source(0)
+	return removed_count == 2 \
+		and service.get_order_count_for_source(0) == 0 \
+		and service.get_order_count_for_source(1) == 1
+
+
+## 验证满兵城市在同一秒内累积出的多次产兵机会，可以被持续任务完整转成多次出兵触发。
+##
+## 调用场景：高产能满兵城市持续运兵/进攻时的主流程回归测试。
+## 主要逻辑：构造一座满员且产能为 3.0 的城市，累计 1 秒产能后，模拟“消费 1 次产兵机会 -> 调度 1 次 -> 源城扣 1 人”三次，
+## 检查能够连续触发 3 次，而不是只触发 1 次后把剩余机会丢掉。
+func _test_continuous_order_full_city_can_dispatch_multiple_ready_production() -> bool:
+	var service = PrototypeOrderDispatchServiceRef.new()
+	var cities: Array = [
+		PrototypeCityStateRef.new(0, "长安", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 35, [1], 3, 3.0),
+		PrototypeCityStateRef.new(1, "洛阳", Vector2.RIGHT, PrototypeCityOwnerRef.PLAYER, 2, 35, 10, [0], 2, 1.0)
+	]
+	service.ensure_continuous_order(0, 1)
+	cities[0].accumulate_production_progress(1.0)
+	var dispatch_count: int = 0
+	while cities[0].get_ready_production_count() > 0:
+		if not cities[0].consume_one_ready_production():
+			return false
+		var dispatch_result: Dictionary = service.dispatch_for_source(cities, 0)
+		if not bool(dispatch_result.get("success", false)):
+			return false
+		dispatch_count += 1
+		cities[0].remove_soldiers(1)
+	return dispatch_count == 3 and cities[0].soldiers == 32
 
 
 ## 验证地图生成时可以按指定数量生成多个独立电脑主城。

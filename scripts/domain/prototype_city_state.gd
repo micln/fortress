@@ -26,8 +26,8 @@ const DEFENSE_UPGRADE_COST: Dictionary = {
 	4: 21,
 	5: 28
 }
-const PRODUCTION_UPGRADE_STEP: float = 0.2
-const PRODUCTION_UPGRADE_MAX: float = 2.4
+const PRODUCTION_UPGRADE_STEP: float = 0.4
+const PRODUCTION_UPGRADE_MAX: float = 3.0
 const PRODUCTION_UPGRADE_COST_BASE: int = 7
 
 var city_id: int
@@ -136,9 +136,10 @@ func can_produce() -> bool:
 ##
 ## 调用场景：进攻推荐兵力、攻城预估、实际到城结算。
 ## 主要逻辑：把当前守军、预计路上新增守军和固定防御值相加，得到攻方至少需要匹配的总门槛；
-## 但中立空城没有实际驻防者，因此不额外享受防御加成。
+## 但没有驻军的空城（含中立空城与已占领空城）不额外享受防御加成，避免“0 人守城却需要先破防”的违和体验。
 func get_effective_defense(predicted_growth: int = 0) -> int:
-	var defense_bonus: int = max(0, defense) if is_occupied() else 0
+	var has_garrison: bool = soldiers + max(0, predicted_growth) > 0
+	var defense_bonus: int = max(0, defense) if is_occupied() and has_garrison else 0
 	return soldiers + max(0, predicted_growth) + defense_bonus
 
 
@@ -161,6 +162,50 @@ func advance_production(delta_seconds: float = 1.0) -> int:
 	soldiers += actual_produced
 	_production_progress -= float(actual_produced)
 	return actual_produced
+
+
+## 仅累计一段时间内的产能进度，不直接把进度兑换成士兵。
+##
+## 调用场景：表现层需要把“产 1 人”和“发 1 人”交错执行时。
+## 主要逻辑：无论当前是否满员，都先把这一段时间对应的产能累计到内部进度里；后续是否真的产出士兵由 `try_produce_one_soldier()` 单步决定。
+func accumulate_production_progress(delta_seconds: float = 1.0) -> void:
+	if not is_occupied():
+		return
+	_production_progress += max(0.0, production_rate * delta_seconds)
+
+
+## 尝试把当前累计产能兑换成 1 名士兵。
+##
+## 调用场景：持续出兵系统需要“每产 1 人就立刻调度 1 次”时。
+## 主要逻辑：只有当城市未满员且内部累计进度至少达到 1.0 时，才真正增加 1 名士兵并扣除 1.0 进度；
+## 这样表现层就能在每次单步产兵后立刻执行一次持续任务，再继续判断这一秒内是否还能再产。
+func try_produce_one_soldier() -> bool:
+	if not can_produce():
+		return false
+	if _production_progress < 0.999:
+		return false
+	soldiers += 1
+	_production_progress -= 1.0
+	return true
+
+
+## 返回当前累计产能最多还能立刻兑换出多少个“单步产兵事件”。
+##
+## 调用场景：持续出兵系统需要按“每产 1 人触发 1 次调度”循环消费产能时。
+## 主要逻辑：只读取内部累计进度的整数部分，不关心城市当前是否满员；这样表现层可以在“满兵但有持续任务”的情况下先派兵，再继续消费同一秒的剩余产能。
+func get_ready_production_count() -> int:
+	return int(floor(_production_progress))
+
+
+## 直接消费 1 次已经累计完成的产兵进度，不修改当前驻军人数。
+##
+## 调用场景：城市已满员但仍有持续任务时，需要把“本应产出的兵”直接转成一次出兵触发。
+## 主要逻辑：仅当内部累计进度至少达到 1.0 时才扣减 1.0；是否真的派出士兵由表现层在同一轮里继续检查源城兵力与任务有效性。
+func consume_one_ready_production() -> bool:
+	if _production_progress < 0.999:
+		return false
+	_production_progress -= 1.0
+	return true
 
 
 ## 返回指定等级对应的人口上限。
@@ -219,7 +264,7 @@ func get_defense_upgrade_cost() -> int:
 ## 判断当前城市是否还能继续提升产能。
 ##
 ## 调用场景：升级按钮状态刷新、AI 决策。
-## 主要逻辑：产能按 0.2 一档提升，达到 2.4/秒 后停止，避免后期爆兵过快。
+## 主要逻辑：产能按 0.4 一档提升，达到 3.0/秒 后停止，让每次升级都能明显改变持续出兵强度，同时避免后期爆兵失控。
 func can_upgrade_production() -> bool:
 	return production_rate < PRODUCTION_UPGRADE_MAX - 0.001
 

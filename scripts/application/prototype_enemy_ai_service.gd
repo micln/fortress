@@ -93,6 +93,23 @@ func choose_attack(cities: Array, battle_service, owner_id: int) -> Dictionary:
 	}
 
 
+## 根据当前局势为指定 AI 势力选择一条最值得维持的持续出兵路线。
+##
+## 调用场景：主循环驱动 AI 下发持续出兵任务时。
+## 主要逻辑：复用现有进攻择优逻辑挑出最优源城和目标城，但不再关心一次性派兵人数；
+## 返回的只是“应该建立哪条持续路线”，真正每次派出的数量固定由持续调度器决定。
+func choose_continuous_order(cities: Array, battle_service, owner_id: int) -> Dictionary:
+	var attack_decision: Dictionary = choose_attack(cities, battle_service, owner_id)
+	if attack_decision.is_empty():
+		return {}
+
+	return {
+		"source_id": int(attack_decision["source_id"]),
+		"target_id": int(attack_decision["target_id"]),
+		"owner_id": owner_id
+	}
+
+
 ## 根据当前局势为指定 AI 势力选择一次更值得的城市升级。
 ##
 ## 调用场景：本轮没有合适进攻时，AI 退而求其次选择养城。

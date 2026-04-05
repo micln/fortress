@@ -38,14 +38,24 @@ func resolve_transfer_arrival(target, transfer_owner: int, moving_soldiers: int)
 		var battle_result: Dictionary = resolve_attack_arrival(target, transfer_owner, moving_soldiers)
 		battle_result["captured_by_enemy"] = false
 		battle_result["retook_after_loss"] = true
+		battle_result["received_count"] = 0
+		battle_result["overflow_count"] = 0
 		return battle_result
 
+	var soldiers_before: int = target.soldiers
 	target.add_soldiers(moving_soldiers)
+	var received_count: int = max(0, target.soldiers - soldiers_before)
+	var overflow_count: int = max(0, moving_soldiers - received_count)
+	var message: String = "%s 接收了 %d 名援军。" % [target.name, received_count]
+	if overflow_count > 0:
+		message = "%s 接收了 %d 名援军，%d 名因满员溢出。" % [target.name, received_count, overflow_count]
 	return {
 		"success": true,
 		"captured_by_enemy": false,
 		"retook_after_loss": false,
-		"message": "%s 接收了 %d 名援军。" % [target.name, moving_soldiers]
+		"received_count": received_count,
+		"overflow_count": overflow_count,
+		"message": message
 	}
 
 
