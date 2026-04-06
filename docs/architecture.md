@@ -5,8 +5,23 @@
 当前原型运行在 `prototype_*` 这一套实现上：
 
 - 主场景：`scenes/main/prototype_main.tscn`
-- 主控制器：`scripts/presentation/prototype_main_game.gd`
+- 主控制器入口壳：`scripts/presentation/prototype_main_game.gd`（场景仍引用该脚本）
 - 城市视图：`scripts/presentation/prototype_city_view.gd`
+
+### 主控制器拆分（presentation 内部分层）
+
+为控制单文件体积与职责清晰度，主控制器采用继承链拆分（过渡期方案，后续仍可继续模块化）：
+
+- `prototype_main_game.gd`
+  - 仅负责 `extends "res://scripts/presentation/prototype_main_game_layer_a.gd"`，保持场景引用路径稳定
+- `prototype_main_game_layer_a.gd`
+  - 主要负责 `_ready()` 装配：Camera/GameState/March/Input 等模块的 setup 与接线
+- `prototype_main_game_layer_b.gd`
+  - 主流程与 UI 编排：开局/暂停/结束、HUD 刷新、按钮回调、对局推进等
+- `prototype_main_game_layer_c.gd`
+  - 共享基础：常量、节点引用、工具函数、少量供模块注入的 getter/setter
+- `prototype_main_input_handler.gd`
+  - 输入子系统：拖拽/缩放手势状态机、`unhandled release -> 取消选城` 语义与 guard 去抖
 
 ## 分层
 
@@ -32,8 +47,10 @@
 
 ### `scripts/presentation/`
 
-- `prototype_main_game.gd`
-  - 主循环、HUD、说明面板、暂停、地图拖拽、坐标转换、道路绘制、行军单位、空白取消选城、升级按钮和状态提示；战场背景也在这里直接通过 `_draw()` 先行绘制，采用固定的四层结构，不拆独立背景节点，确保道路、城市和行军单位始终覆盖在背景之上
+- `prototype_main_game.gd` + `prototype_main_game_layer_*.gd`
+  - 主循环、HUD、说明面板、暂停、坐标转换、道路绘制、行军单位、升级按钮和状态提示等表现层编排
+- `prototype_main_input_handler.gd`
+  - 地图拖拽、缩放、输入 guard 与空白取消选城语义（通过 `Callable` 注入与主控制器解耦）
 - `prototype_city_view.gd`
   - 城市图标绘制、标签布局、点击区域、点击与拖拽判定分离；城市 marker 默认短文本，emoji 仅在显式开关打开时启用
 

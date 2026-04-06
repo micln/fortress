@@ -3,7 +3,12 @@
 ## 当前运行入口
 
 - 主场景：`scenes/main/prototype_main.tscn`
-- 主控制脚本：`scripts/presentation/prototype_main_game.gd`
+- 主控制脚本入口壳：`scripts/presentation/prototype_main_game.gd`
+- 主控制器拆分（presentation 内部分层）：
+  - `scripts/presentation/prototype_main_game_layer_a.gd`：装配/初始化（_ready 接线）
+  - `scripts/presentation/prototype_main_game_layer_b.gd`：主流程与 UI 编排
+  - `scripts/presentation/prototype_main_game_layer_c.gd`：共享基础与工具
+  - `scripts/presentation/prototype_main_input_handler.gd`：输入/手势与取消选城语义
 - 当前运行入口集中在 `prototype_*` 这一套实现上
 - 当前第一阶段默认地图来源为预设地图 loader；随机地图生成器仍保留在仓库中，但不再作为默认开局路径
 
@@ -129,12 +134,13 @@
 
 - `prototype_map_generator.gd` 生成的是地图世界坐标，不再假设坐标一定落在单屏视口内。
 - `prototype_preset_map_loader.gd` 输出的预设地图坐标也会落在同一套地图世界坐标系内，因此后续拖拽、点击命中和道路绘制逻辑无需重写。
-- `prototype_main_game.gd` 维护 `_map_offset`，统一负责 `world -> screen` 与 `screen -> world` 转换。
-- `prototype_main_game.gd` 还维护 `_map_zoom`，拖拽与点击命中都走同一套偏移+缩放换算，避免缩放后交互漂移。
+- 当前地图变换（offset/zoom）由 `CameraController` 维护，主控制器通过 `world_to_screen/screen_to_world` 统一换算。
+- 拖拽/缩放手势状态机由 `PrototypeMainInputHandler` 维护，通过 `Callable` 注入调用 `get_map_offset/set_map_offset/get_map_zoom/set_map_zoom`，避免输入模块直接依赖具体 UI 或节点树结构。
 - 城市节点、道路、行军单位、浮动升级条都必须经过同一套偏移换算，避免拖拽后表现错位。
 - HUD、说明遮罩和右侧任务面板仍固定在 `CanvasLayer`，不随地图拖动。
 - 鼠标左键拖拽与单指拖动共用同一套阈值判定：按下先记录，移动超过阈值才视为拖拽；否则保留点击语义。
 - 桌面端滚轮可按鼠标位置缩放地图；触屏端双指缩放以双指中心为锚点，缩放时会自动打断单指拖拽候选，避免手势冲突。
+ - 空白释放取消选城逻辑在 `PrototypeMainInputHandler.handle_unhandled_input()` 中统一处理：先用 guard 去抖吞掉“选城后紧随其后的 release”，再按 `should_ignore_selection_cancel()` 做 hit-test，最后才触发 `clear_selection_with_message()`。
 
 ## 重要实现约束
 
