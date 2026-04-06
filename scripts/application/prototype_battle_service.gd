@@ -165,6 +165,83 @@ func resolve_attack_arrival(target, attacker_owner: int, attackers: int) -> Dict
 	}
 
 
+## 结算同一帧内多支进攻部队同时到达同一座城市的战斗结果。
+##
+## 调用场景：表现层在一帧内收集到同目标城市的多支 `attack` 行军后。
+## 主要逻辑：先把守方同阵营到达部队并入守军，再把其余攻方按阵营聚合成“同帧攻城总兵力”；
+## 若多个攻方同时到达，则先进行同帧互耗（最大兵团减去其余总兵力，无法压制则同归于尽），
+## 最后只让幸存攻方与守城方进行一次攻城结算，避免“先到先得”造成的顺序偏差。
+func resolve_simultaneous_attack_arrivals(target, arrivals_by_owner: Dictionary) -> Dictionary:
+	var defender_owner: int = target.owner
+	var defender_soldiers_before: int = target.soldiers
+	var defender_reinforcement: int = max(0, int(arrivals_by_owner.get(defender_owner, 0)))
+	var defender_soldiers_after_reinforcement: int = min(target.max_soldiers, defender_soldiers_before + defender_reinforcement)
+	target.soldiers = defender_soldiers_after_reinforcement
+
+	var attacking_totals: Dictionary = {}
+	for key in arrivals_by_owner.keys():
+		var owner: int = int(key)
+		if owner == defender_owner:
+			continue
+		var count: int = max(0, int(arrivals_by_owner[key]))
+		if count <= 0:
+			continue
+		attacking_totals[owner] = count
+
+	if attacking_totals.is_empty():
+		return {
+			"success": true,
+			"captured": false,
+			"reinforced": defender_reinforcement > 0,
+			"contested": false,
+			"winner_owner": defender_owner,
+			"winner_count": 0,
+			"defender_reinforcement": defender_reinforcement,
+			"message": "%s 接收了 %d 名友军增援。" % [target.name, defender_reinforcement]
+		}
+
+	var winner_owner: int = PrototypeCityOwnerRef.NEUTRAL
+	var winner_count: int = 0
+	var total_attackers: int = 0
+	for owner in attacking_totals.keys():
+		var count: int = int(attacking_totals[owner])
+		total_attackers += count
+		if count > winner_count:
+			winner_count = count
+			winner_owner = int(owner)
+
+	var attackers_cancelled: bool = false
+	if attacking_totals.size() > 1:
+		var others_total: int = total_attackers - winner_count
+		if winner_count <= others_total:
+			attackers_cancelled = true
+			winner_owner = PrototypeCityOwnerRef.NEUTRAL
+			winner_count = 0
+		else:
+			winner_count -= others_total
+
+	if winner_count <= 0:
+		return {
+			"success": true,
+			"captured": false,
+			"reinforced": defender_reinforcement > 0,
+			"contested": true,
+			"attackers_cancelled": true,
+			"winner_owner": PrototypeCityOwnerRef.NEUTRAL,
+			"winner_count": 0,
+			"defender_reinforcement": defender_reinforcement,
+			"message": "%s 附近多方部队同帧混战后同归于尽，守军稳住了城池。" % target.name
+		}
+
+	var arrival_result: Dictionary = resolve_attack_arrival(target, winner_owner, winner_count)
+	arrival_result["contested"] = attacking_totals.size() > 1
+	arrival_result["attackers_cancelled"] = attackers_cancelled
+	arrival_result["winner_owner"] = winner_owner
+	arrival_result["winner_count"] = winner_count
+	arrival_result["defender_reinforcement"] = defender_reinforcement
+	return arrival_result
+
+
 ## 结算两支不同势力行军部队在道路上的遭遇战。
 ##
 ## 调用场景：主场景检测到两支行军单位在道路上相遇时。

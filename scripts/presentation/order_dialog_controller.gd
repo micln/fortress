@@ -6,6 +6,7 @@ signal order_cancelled
 signal continuous_toggle_changed(enabled: bool)
 
 const NARROW_OVERLAY_BREAKPOINT: float = 520.0
+const MIN_ORDER_COUNT: int = 10
 
 var _source_id: int = -1
 var _target_id: int = -1
@@ -73,7 +74,7 @@ func _setup_buttons() -> void:
 
 func _setup_continuous_toggle() -> void:
 	_continuous_toggle = CheckButton.new()
-	_continuous_toggle.text = "【开启自动出兵】源城每产 1 兵就自动派 1 人（忽略数量框）"
+	_continuous_toggle.text = "【开启自动出兵】源城每产 10 兵就自动派 10 人（忽略数量框）"
 	_continuous_toggle.focus_mode = Control.FOCUS_NONE
 	_continuous_toggle.add_theme_font_size_override("font_size", 20)
 	_continuous_toggle.add_theme_color_override("font_color", Color("f6d365"))
@@ -93,7 +94,7 @@ func open(source_id: int, target_id: int, is_transfer: bool, recommended_count: 
 	_is_transfer = is_transfer
 	_recommended_count = recommended_count
 	_max_count = max_count
-	_current_count = clamp(recommended_count, 1, max_count)
+	_current_count = clamp(recommended_count, MIN_ORDER_COUNT, max_count)
 	_continuous_enabled = true
 
 	if is_transfer:
@@ -117,7 +118,7 @@ func close() -> void:
 
 
 func set_count(count: int) -> void:
-	_current_count = clamp(count, 1, _max_count)
+	_current_count = clamp(count, MIN_ORDER_COUNT, _max_count)
 	_refresh_count()
 
 
@@ -135,13 +136,13 @@ func _refresh_count() -> void:
 
 
 func _refresh_buttons() -> void:
-	minus_10_button.disabled = _current_count <= 1
-	minus_1_button.disabled = _current_count <= 1
+	minus_10_button.disabled = _current_count <= MIN_ORDER_COUNT
+	minus_1_button.disabled = _current_count <= MIN_ORDER_COUNT
 	plus_1_button.disabled = _current_count >= _max_count
 	plus_10_button.disabled = _current_count >= _max_count
 	plus_20_button.disabled = _current_count >= _max_count
 	plus_50_button.disabled = _current_count >= _max_count
-	confirm_button.disabled = _current_count <= 0
+	confirm_button.disabled = _current_count < MIN_ORDER_COUNT
 	if _continuous_toggle != null:
 		_continuous_toggle.button_pressed = _continuous_enabled
 
@@ -196,37 +197,37 @@ func _calculate_march_duration(source_id: int, target_id: int) -> float:
 
 
 func _adjust_count(delta: int) -> void:
-	_current_count = clamp(_current_count + delta, 1, _max_count)
+	_current_count = clamp(_current_count + delta, MIN_ORDER_COUNT, _max_count)
 	_refresh_count()
 	_refresh_buttons()
 
 
 func _on_minus_10() -> void:
-	_adjust_count(-10)
+	_adjust_count(-100)
 
 
 func _on_minus_1() -> void:
-	_adjust_count(-1)
+	_adjust_count(-10)
 
 
 func _on_plus_1() -> void:
-	_adjust_count(1)
-
-
-func _on_plus_10() -> void:
 	_adjust_count(10)
 
 
+func _on_plus_10() -> void:
+	_adjust_count(100)
+
+
 func _on_plus_20() -> void:
-	_adjust_count(20)
+	_adjust_count(200)
 
 
 func _on_plus_50() -> void:
-	_adjust_count(50)
+	_adjust_count(500)
 
 
 func _on_half() -> void:
-	_current_count = max(1, int(floor(float(_max_count) * 0.5)))
+	_current_count = max(MIN_ORDER_COUNT, int(floor(float(_max_count) * 0.5)))
 	_refresh_count()
 	_refresh_buttons()
 
@@ -244,7 +245,7 @@ func _on_recommend() -> void:
 
 
 func _on_keep_one() -> void:
-	_current_count = max(1, _max_count - 1)
+	_current_count = max(MIN_ORDER_COUNT, _max_count - 10)
 	_refresh_count()
 	_refresh_buttons()
 

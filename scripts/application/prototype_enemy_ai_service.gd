@@ -131,7 +131,7 @@ func choose_upgrade(cities: Array, battle_service, owner_id: int) -> Dictionary:
 				continue
 			var cost: int = int(option.get("cost", 0))
 			var reserve_after_upgrade: int = city.soldiers - cost
-			if reserve_after_upgrade < _get_reserve_requirement() + 2:
+			if reserve_after_upgrade < _get_reserve_requirement() + 20:
 				continue
 
 			var score: float = _score_upgrade(city, upgrade_type, cost)
@@ -157,11 +157,11 @@ func choose_upgrade(cities: Array, battle_service, owner_id: int) -> Dictionary:
 func _get_minimum_advantage() -> int:
 	match _difficulty:
 		DIFFICULTY_EASY:
-			return 4
+			return 40
 		DIFFICULTY_NORMAL:
-			return 2
+			return 20
 		_:
-			return 1
+			return 10
 
 
 ## 计算面对当前目标时 AI 需要保留的额外优势兵力。
@@ -171,7 +171,7 @@ func _get_minimum_advantage() -> int:
 func _get_required_advantage(target) -> int:
 	var minimum_advantage: int = _get_minimum_advantage()
 	if PrototypeCityOwnerRef.is_neutral(target.owner):
-		return max(0, minimum_advantage - 2)
+		return max(0, minimum_advantage - 20)
 	return minimum_advantage
 
 
@@ -181,8 +181,8 @@ func _get_required_advantage(target) -> int:
 ## 主要逻辑：进攻型偏向压上兵力，防御型会在后方保留更多守军。
 func _get_reserve_requirement() -> int:
 	if _style == STYLE_DEFENSIVE:
-		return 3
-	return 1
+		return 30
+	return 10
 
 
 ## 结合推荐人数和难度加成，计算 AI 本次计划真实派出的兵力。
@@ -193,12 +193,12 @@ func _get_attack_troop_count(source_soldiers: int, recommended_count: int) -> in
 	var attack_bonus: int = 0
 	match _difficulty:
 		DIFFICULTY_NORMAL:
-			attack_bonus = 1
+			attack_bonus = 10
 		DIFFICULTY_HARD:
-			attack_bonus = 3
+			attack_bonus = 30
 
 	if _style == STYLE_AGGRESSIVE:
-		attack_bonus += 1
+		attack_bonus += 10
 
 	var max_allowed: int = max(0, source_soldiers - _get_reserve_requirement())
 	return min(max_allowed, recommended_count + attack_bonus)
@@ -210,7 +210,7 @@ func _get_attack_troop_count(source_soldiers: int, recommended_count: int) -> in
 ## 主要逻辑：综合考虑目标归属、路程远近、预计盈余兵力、目标防御与产能威胁和当前风格偏好，
 ## 得到一个可比较的浮点评分；进攻型会更主动压迫玩家，但不会在多人局里无脑忽略更优的非玩家目标。
 func _score_target(source, target, troop_count: int, recommended_count: int, travel_duration: float) -> float:
-	var score: float = float(troop_count - recommended_count)
+	var score: float = float(troop_count - recommended_count) / 10.0
 	score += float(source.level) * 0.2
 	score -= float(target.defense) * 0.45
 	score += target.production_rate * 0.7
@@ -235,7 +235,7 @@ func _score_target(source, target, troop_count: int, recommended_count: int, tra
 ## 主要逻辑：结合当前风格、城市兵力富余、现有属性短板和升级成本，给出一个可比较分值。
 func _score_upgrade(city, upgrade_type: String, cost: int) -> float:
 	var reserve_after_upgrade: int = city.soldiers - cost
-	var score: float = float(reserve_after_upgrade) * 0.08 - float(cost) * 0.05
+	var score: float = float(reserve_after_upgrade) * 0.008 - float(cost) * 0.005
 
 	match upgrade_type:
 		"level":

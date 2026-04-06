@@ -6,9 +6,9 @@ const PrototypeCityStateRef = preload("res://scripts/domain/prototype_city_state
 const PrototypePresetMapDefinitionRef = preload("res://scripts/application/prototype_preset_map_definition.gd")
 const PrototypeMapRegistryRef = preload("res://scripts/application/prototype_map_registry.gd")
 const DESIGN_CANVAS_MIN_CITY_DISTANCE: float = 110.0
-const PASS_DEFENSE_BONUS: int = 1
-const HUB_PRODUCTION_BONUS: float = 0.2
-const HEARTLAND_SOLDIER_BONUS: int = 2
+const PASS_DEFENSE_BONUS: int = 10
+const HUB_PRODUCTION_BONUS: float = 2.0
+const HEARTLAND_SOLDIER_BONUS: int = 20
 
 var _last_error_message: String = ""
 var _current_map_id: String = ""
@@ -225,8 +225,8 @@ func _is_valid_node_type(node_type: String) -> bool:
 ## 主要逻辑：读取模板基础防御、产能与初始兵力，按关口/枢纽/腹地的约定做轻量修正，并返回最终装配值。
 func _apply_node_type_effects(city_definition: Dictionary, node_type: String) -> Dictionary:
 	var adjusted_stats: Dictionary = {
-		"defense": int(city_definition.get("defense", 1)),
-		"production_rate": float(city_definition.get("production_rate", 1.0)),
+		"defense": int(city_definition.get("defense", 10)),
+		"production_rate": float(city_definition.get("production_rate", 10.0)),
 		"initial_soldiers": int(city_definition.get("initial_soldiers", 0))
 	}
 	match node_type:

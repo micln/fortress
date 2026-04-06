@@ -19,12 +19,12 @@ func get_metadata() -> Dictionary:
 
 func get_city_definitions() -> Array[Dictionary]:
 	return [
-		{"id": 0, "name": "襄阳", "position": Vector2(0.5, 0.15), "initial_soldiers": 10, "level": 2, "defense": 2, "production_rate": 1.0, "node_type": "heartland"},
-		{"id": 1, "name": "南阳", "position": Vector2(0.25, 0.35), "initial_soldiers": 5, "level": 1, "defense": 1, "production_rate": 1.0, "node_type": "normal"},
-		{"id": 2, "name": "新野", "position": Vector2(0.75, 0.35), "initial_soldiers": 5, "level": 1, "defense": 1, "production_rate": 1.0, "node_type": "normal"},
-		{"id": 3, "name": "荆州", "position": Vector2(0.5, 0.55), "initial_soldiers": 6, "level": 1, "defense": 2, "production_rate": 1.1, "node_type": "hub"},
-		{"id": 4, "name": "江陵", "position": Vector2(0.25, 0.8), "initial_soldiers": 10, "level": 2, "defense": 2, "production_rate": 1.0, "node_type": "heartland"},
-		{"id": 5, "name": "江夏", "position": Vector2(0.75, 0.8), "initial_soldiers": 10, "level": 2, "defense": 2, "production_rate": 1.0, "node_type": "heartland"}
+		{"id": 0, "name": "襄阳", "position": Vector2(0.5, 0.15), "initial_soldiers": 100, "level": 2, "defense": 20, "production_rate": 10.0, "node_type": "heartland"},
+		{"id": 1, "name": "南阳", "position": Vector2(0.25, 0.35), "initial_soldiers": 50, "level": 1, "defense": 10, "production_rate": 10.0, "node_type": "normal"},
+		{"id": 2, "name": "新野", "position": Vector2(0.75, 0.35), "initial_soldiers": 50, "level": 1, "defense": 10, "production_rate": 10.0, "node_type": "normal"},
+		{"id": 3, "name": "荆州", "position": Vector2(0.5, 0.55), "initial_soldiers": 60, "level": 1, "defense": 20, "production_rate": 11.0, "node_type": "hub"},
+		{"id": 4, "name": "江陵", "position": Vector2(0.25, 0.8), "initial_soldiers": 100, "level": 2, "defense": 20, "production_rate": 10.0, "node_type": "heartland"},
+		{"id": 5, "name": "江夏", "position": Vector2(0.75, 0.8), "initial_soldiers": 100, "level": 2, "defense": 20, "production_rate": 10.0, "node_type": "heartland"}
 	]
 
 

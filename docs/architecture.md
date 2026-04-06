@@ -71,8 +71,8 @@
   - 开始与结束面板
 - `OrderDialog`
   - 玩家出兵数量选择
-- `CityTemplate`
-  - 城市节点模板，由主场景复制
+- `Cities`
+  - 运行时通过 `scenes/world/city.tscn` 直接实例化城池节点
 
 ## 关键设计取舍
 

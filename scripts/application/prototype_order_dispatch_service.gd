@@ -111,9 +111,9 @@ func get_all_orders() -> Array[Dictionary]:
 	return snapshots
 
 
-## 针对某个源城执行一次“产出 1 兵后的持续出兵调度”。
+## 针对某个源城执行一次“产出一个批次兵力后的持续出兵调度”。
 ##
-## 调用场景：某城每新产出 1 个兵时。
+## 调用场景：某城每累计到一个新增批次（默认 10 人）时。
 ## 主要逻辑：按该源城独立的轮转索引取出一条任务；若源城无效、无兵、无任务则返回跳过原因；
 ## 若命中有效任务，则返回执行描述，由表现层决定如何真正创建行军单位。
 func dispatch_for_source(cities: Array, source_id: int) -> Dictionary:
@@ -150,7 +150,7 @@ func dispatch_for_source(cities: Array, source_id: int) -> Dictionary:
 		"target_id": order.target_id,
 		"source_owner": source.owner,
 		"target_owner": target.owner,
-		"troop_count": 1,
+		"troop_count": 10,
 		"is_transfer": source.owner == target.owner,
 		"mode": order.mode
 	}

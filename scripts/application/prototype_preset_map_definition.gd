@@ -23,20 +23,20 @@ func get_metadata() -> Dictionary:
 ## 主要逻辑：为每座城市提供设计坐标、基础数值和展示名称；这些值以 design canvas 为坐标系，不直接依赖当前屏幕尺寸。
 func get_city_definitions() -> Array[Dictionary]:
 	return [
-		{"id": 0, "name": "凉州", "position": Vector2(150.0, 250.0), "initial_soldiers": 12, "level": 2, "defense": 2, "production_rate": 1.0, "node_type": "normal"},
-		{"id": 1, "name": "长安", "position": Vector2(330.0, 420.0), "initial_soldiers": 8, "level": 2, "defense": 2, "production_rate": 1.1, "node_type": "pass"},
-		{"id": 2, "name": "洛阳", "position": Vector2(610.0, 560.0), "initial_soldiers": 7, "level": 2, "defense": 2, "production_rate": 1.2, "node_type": "hub"},
-		{"id": 3, "name": "邺城", "position": Vector2(860.0, 470.0), "initial_soldiers": 6, "level": 2, "defense": 2, "production_rate": 1.1, "node_type": "normal"},
-		{"id": 4, "name": "幽州", "position": Vector2(1020.0, 230.0), "initial_soldiers": 12, "level": 2, "defense": 2, "production_rate": 1.0, "node_type": "normal"},
-		{"id": 5, "name": "汉中", "position": Vector2(300.0, 880.0), "initial_soldiers": 6, "level": 1, "defense": 2, "production_rate": 1.0, "node_type": "pass"},
-		{"id": 6, "name": "宛城", "position": Vector2(540.0, 900.0), "initial_soldiers": 7, "level": 1, "defense": 1, "production_rate": 1.0, "node_type": "normal"},
-		{"id": 7, "name": "许昌", "position": Vector2(720.0, 820.0), "initial_soldiers": 7, "level": 1, "defense": 1, "production_rate": 1.0, "node_type": "hub"},
-		{"id": 8, "name": "汴州", "position": Vector2(900.0, 930.0), "initial_soldiers": 7, "level": 1, "defense": 1, "production_rate": 1.0, "node_type": "normal"},
-		{"id": 9, "name": "成都", "position": Vector2(210.0, 1380.0), "initial_soldiers": 12, "level": 2, "defense": 2, "production_rate": 1.0, "node_type": "heartland"},
-		{"id": 10, "name": "江陵", "position": Vector2(460.0, 1310.0), "initial_soldiers": 7, "level": 1, "defense": 1, "production_rate": 1.1, "node_type": "normal"},
-		{"id": 11, "name": "寿春", "position": Vector2(720.0, 1280.0), "initial_soldiers": 7, "level": 1, "defense": 1, "production_rate": 1.1, "node_type": "normal"},
-		{"id": 12, "name": "建业", "position": Vector2(980.0, 1430.0), "initial_soldiers": 12, "level": 2, "defense": 2, "production_rate": 1.0, "node_type": "normal"},
-		{"id": 13, "name": "交州", "position": Vector2(620.0, 1830.0), "initial_soldiers": 9, "level": 2, "defense": 2, "production_rate": 1.0, "node_type": "heartland"}
+		{"id": 0, "name": "凉州", "position": Vector2(150.0, 250.0), "initial_soldiers": 120, "level": 2, "defense": 20, "production_rate": 10.0, "node_type": "normal"},
+		{"id": 1, "name": "长安", "position": Vector2(330.0, 420.0), "initial_soldiers": 80, "level": 2, "defense": 20, "production_rate": 11.0, "node_type": "pass"},
+		{"id": 2, "name": "洛阳", "position": Vector2(610.0, 560.0), "initial_soldiers": 70, "level": 2, "defense": 20, "production_rate": 12.0, "node_type": "hub"},
+		{"id": 3, "name": "邺城", "position": Vector2(860.0, 470.0), "initial_soldiers": 60, "level": 2, "defense": 20, "production_rate": 11.0, "node_type": "normal"},
+		{"id": 4, "name": "幽州", "position": Vector2(1020.0, 230.0), "initial_soldiers": 120, "level": 2, "defense": 20, "production_rate": 10.0, "node_type": "normal"},
+		{"id": 5, "name": "汉中", "position": Vector2(300.0, 880.0), "initial_soldiers": 60, "level": 1, "defense": 20, "production_rate": 10.0, "node_type": "pass"},
+		{"id": 6, "name": "宛城", "position": Vector2(540.0, 900.0), "initial_soldiers": 70, "level": 1, "defense": 10, "production_rate": 10.0, "node_type": "normal"},
+		{"id": 7, "name": "许昌", "position": Vector2(720.0, 820.0), "initial_soldiers": 70, "level": 1, "defense": 10, "production_rate": 10.0, "node_type": "hub"},
+		{"id": 8, "name": "汴州", "position": Vector2(900.0, 930.0), "initial_soldiers": 70, "level": 1, "defense": 10, "production_rate": 10.0, "node_type": "normal"},
+		{"id": 9, "name": "成都", "position": Vector2(210.0, 1380.0), "initial_soldiers": 120, "level": 2, "defense": 20, "production_rate": 10.0, "node_type": "heartland"},
+		{"id": 10, "name": "江陵", "position": Vector2(460.0, 1310.0), "initial_soldiers": 70, "level": 1, "defense": 10, "production_rate": 11.0, "node_type": "normal"},
+		{"id": 11, "name": "寿春", "position": Vector2(720.0, 1280.0), "initial_soldiers": 70, "level": 1, "defense": 10, "production_rate": 11.0, "node_type": "normal"},
+		{"id": 12, "name": "建业", "position": Vector2(980.0, 1430.0), "initial_soldiers": 120, "level": 2, "defense": 20, "production_rate": 10.0, "node_type": "normal"},
+		{"id": 13, "name": "交州", "position": Vector2(620.0, 1830.0), "initial_soldiers": 90, "level": 2, "defense": 20, "production_rate": 10.0, "node_type": "heartland"}
 	]
 
 

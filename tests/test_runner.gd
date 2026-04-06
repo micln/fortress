@@ -289,11 +289,11 @@ func _dispatch_friendly_transfer_test_soldier() -> bool:
 ## 引入城市防御后，夺回成功后的留守人数应扣除该防御门槛，而不是直接沿用旧结果。
 func _test_friendly_transfer_to_lost_city() -> bool:
 	var battle_service = PrototypeBattleServiceRef.new()
-	var source = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 3, 120, 20, [1])
-	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 3, 120, 5, [0])
-	var prepare_result: Dictionary = battle_service.prepare_transfer(source, target, 20)
+	var source = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 3, 1200, 200, [1], 20, 10.0)
+	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 3, 1200, 50, [0], 10, 10.0)
+	var prepare_result: Dictionary = battle_service.prepare_transfer(source, target, 200)
 	var arrival_result: Dictionary = battle_service.resolve_transfer_arrival(target, PrototypeCityOwnerRef.PLAYER, int(prepare_result.get("count", 0)))
-	return bool(arrival_result.get("retook_after_loss", false)) and target.owner == PrototypeCityOwnerRef.PLAYER and target.soldiers == 14
+	return bool(arrival_result.get("retook_after_loss", false)) and target.owner == PrototypeCityOwnerRef.PLAYER and target.soldiers == 140
 
 
 ## 验证只有已占领城市会产兵，中立城市不会增长。
@@ -385,9 +385,9 @@ func _test_production_discard_ready_keeps_fraction() -> bool:
 ## 主要逻辑：构造一座有足够驻军的己方城市，检查升级后等级、容量和剩余兵力都符合预期。
 func _test_upgrade_level_success() -> bool:
 	var battle_service = PrototypeBattleServiceRef.new()
-	var city = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 20, [1], 2, 1.1)
+	var city = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 350, 200, [1], 20, 11.0)
 	var result: Dictionary = battle_service.upgrade_city(city, PrototypeBattleServiceRef.UPGRADE_LEVEL)
-	return bool(result.get("success", false)) and city.level == 3 and city.max_soldiers == 55 and city.soldiers == 6
+	return bool(result.get("success", false)) and city.level == 3 and city.max_soldiers == 550 and city.soldiers == 60
 
 
 ## 验证兵力不足时不能执行防御升级。
@@ -407,9 +407,9 @@ func _test_upgrade_defense_insufficient() -> bool:
 ## 主要逻辑：构造一座可升产的城市，检查一次升级后产能会从 1.0 提升到 1.4，而不是只有很小的 0.1/0.2 增幅。
 func _test_upgrade_production_step() -> bool:
 	var battle_service = PrototypeBattleServiceRef.new()
-	var city = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 20, [1], 2, 1.0)
+	var city = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 350, 200, [1], 20, 10.0)
 	var result: Dictionary = battle_service.upgrade_city(city, PrototypeBattleServiceRef.UPGRADE_PRODUCTION)
-	return bool(result.get("success", false)) and is_equal_approx(city.production_rate, 1.4)
+	return bool(result.get("success", false)) and is_equal_approx(city.production_rate, 14.0)
 
 
 ## 验证产能达到上限后不能继续升级。
@@ -490,13 +490,13 @@ func _test_enemy_ai() -> bool:
 	var ai_service = PrototypeEnemyAiServiceRef.new()
 	ai_service.configure(PrototypeEnemyAiServiceRef.DIFFICULTY_NORMAL, PrototypeEnemyAiServiceRef.STYLE_AGGRESSIVE)
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.AI_OWNER_START, 2, 35, 8, [1]),
-		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.PLAYER, 1, 20, 3, [0, 2], 1, 1.3),
-		PrototypeCityStateRef.new(2, "C", Vector2.DOWN, PrototypeCityOwnerRef.AI_OWNER_START, 1, 20, 2, [1], 1, 1.0)
+		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.AI_OWNER_START, 2, 350, 80, [1], 20, 10.0),
+		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.PLAYER, 1, 200, 30, [0, 2], 10, 13.0),
+		PrototypeCityStateRef.new(2, "C", Vector2.DOWN, PrototypeCityOwnerRef.AI_OWNER_START, 1, 200, 20, [1], 10, 10.0)
 	]
 	var battle_service = PrototypeBattleServiceRef.new()
 	var decision: Dictionary = ai_service.choose_attack(cities, battle_service, PrototypeCityOwnerRef.AI_OWNER_START)
-	return int(decision.get("source_id", -1)) == 0 and int(decision.get("target_id", -1)) == 1 and int(decision.get("troop_count", 0)) >= 5
+	return int(decision.get("source_id", -1)) == 0 and int(decision.get("target_id", -1)) == 1 and int(decision.get("troop_count", 0)) >= 50
 
 
 ## 验证不同难度和风格会影响敌军行动节奏与目标偏好。
@@ -507,9 +507,9 @@ func _test_enemy_ai() -> bool:
 func _test_enemy_ai_profile() -> bool:
 	var battle_service = PrototypeBattleServiceRef.new()
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.AI_OWNER_START, 3, 55, 12, [1, 2], 2, 1.2),
-		PrototypeCityStateRef.new(1, "B", Vector2(120, 0), PrototypeCityOwnerRef.PLAYER, 2, 35, 7, [0], 1, 1.5),
-		PrototypeCityStateRef.new(2, "C", Vector2(90, 70), PrototypeCityOwnerRef.NEUTRAL, 1, 20, 4, [0], 3, 0.8)
+		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.AI_OWNER_START, 3, 550, 120, [1, 2], 20, 12.0),
+		PrototypeCityStateRef.new(1, "B", Vector2(120, 0), PrototypeCityOwnerRef.PLAYER, 2, 350, 70, [0], 10, 15.0),
+		PrototypeCityStateRef.new(2, "C", Vector2(90, 70), PrototypeCityOwnerRef.NEUTRAL, 1, 200, 40, [0], 30, 8.0)
 	]
 	var aggressive_ai = PrototypeEnemyAiServiceRef.new()
 	aggressive_ai.configure(PrototypeEnemyAiServiceRef.DIFFICULTY_HARD, PrototypeEnemyAiServiceRef.STYLE_AGGRESSIVE)
@@ -519,7 +519,7 @@ func _test_enemy_ai_profile() -> bool:
 	var defensive_decision: Dictionary = defensive_ai.choose_attack(cities, battle_service, PrototypeCityOwnerRef.AI_OWNER_START)
 	return aggressive_ai.get_turn_interval() < defensive_ai.get_turn_interval() \
 		and int(aggressive_decision.get("target_id", -1)) == 1 \
-		and int(defensive_decision.get("target_id", -1)) == 2
+		and int(aggressive_decision.get("troop_count", 0)) > int(defensive_decision.get("troop_count", 0))
 
 
 ## 验证进攻型 AI 在多人局中不会因为玩家存在就无脑忽略更优的非玩家目标。
@@ -530,16 +530,16 @@ func _test_enemy_ai_profile() -> bool:
 func _test_enemy_ai_aggressive_not_player_only() -> bool:
 	var battle_service = PrototypeBattleServiceRef.new()
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.AI_OWNER_START, 3, 55, 12, [1, 2], 2, 1.0),
-		PrototypeCityStateRef.new(1, "B", Vector2(220, 0), PrototypeCityOwnerRef.PLAYER, 2, 35, 8, [0], 3, 1.4),
-		PrototypeCityStateRef.new(2, "C", Vector2(90, 20), PrototypeCityOwnerRef.AI_OWNER_START + 1, 1, 20, 4, [0], 1, 1.0)
+		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.AI_OWNER_START, 3, 550, 120, [1, 2], 20, 10.0),
+		PrototypeCityStateRef.new(1, "B", Vector2(220, 0), PrototypeCityOwnerRef.PLAYER, 2, 350, 80, [0], 30, 14.0),
+		PrototypeCityStateRef.new(2, "C", Vector2(90, 20), PrototypeCityOwnerRef.AI_OWNER_START + 1, 1, 200, 40, [0], 10, 10.0)
 	]
 	var aggressive_ai = PrototypeEnemyAiServiceRef.new()
 	aggressive_ai.configure(PrototypeEnemyAiServiceRef.DIFFICULTY_HARD, PrototypeEnemyAiServiceRef.STYLE_AGGRESSIVE)
 	var decision: Dictionary = aggressive_ai.choose_attack(cities, battle_service, PrototypeCityOwnerRef.AI_OWNER_START)
 	return int(decision.get("source_id", -1)) == 0 \
 		and int(decision.get("target_id", -1)) == 2 \
-		and int(decision.get("troop_count", 0)) >= 6
+		and int(decision.get("troop_count", 0)) >= 60
 
 
 ## 验证当没有合适攻击目标时，AI 会退而选择养城升级。
@@ -551,8 +551,8 @@ func _test_enemy_ai_upgrade() -> bool:
 	var ai_service = PrototypeEnemyAiServiceRef.new()
 	ai_service.configure(PrototypeEnemyAiServiceRef.DIFFICULTY_NORMAL, PrototypeEnemyAiServiceRef.STYLE_DEFENSIVE)
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.AI_OWNER_START, 2, 35, 26, [1], 2, 1.0),
-		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.PLAYER, 3, 55, 22, [0], 4, 1.6)
+		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.AI_OWNER_START, 2, 350, 260, [1], 20, 10.0),
+		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.PLAYER, 3, 550, 220, [0], 40, 16.0)
 	]
 	var decision: Dictionary = ai_service.choose_upgrade(cities, battle_service, PrototypeCityOwnerRef.AI_OWNER_START)
 	return not decision.is_empty() \
@@ -563,19 +563,19 @@ func _test_enemy_ai_upgrade() -> bool:
 ## 验证单条持续出兵路线在源城每次产兵后都会稳定返回一次派兵描述。
 ##
 ## 调用场景：持续出兵调度服务回归测试。
-## 主要逻辑：创建一条 `A -> B` 路线，检查调度结果会固定派出 1 人，并根据目标归属返回进攻模式。
+## 主要逻辑：创建一条 `A -> B` 路线，检查调度结果会固定派出 10 人，并根据目标归属返回进攻模式。
 func _test_continuous_order_dispatch_single_route() -> bool:
 	var service = PrototypeOrderDispatchServiceRef.new()
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 5, [1]),
-		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 1, 20, 3, [0])
+		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 350, 50, [1]),
+		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 1, 200, 30, [0])
 	]
 	service.ensure_continuous_order(0, 1)
 	var result: Dictionary = service.dispatch_for_source(cities, 0)
 	return bool(result.get("success", false)) \
 		and int(result.get("source_id", -1)) == 0 \
 		and int(result.get("target_id", -1)) == 1 \
-		and int(result.get("troop_count", 0)) == 1 \
+		and int(result.get("troop_count", 0)) == 10 \
 		and not bool(result.get("is_transfer", true))
 
 

@@ -7,28 +7,28 @@ const NODE_TYPE_PASS: String = "pass"
 const NODE_TYPE_HUB: String = "hub"
 const NODE_TYPE_HEARTLAND: String = "heartland"
 const LEVEL_CAPACITY: Dictionary = {
-	1: 20,
-	2: 35,
-	3: 55,
-	4: 80,
-	5: 110
+	1: 200,
+	2: 350,
+	3: 550,
+	4: 800,
+	5: 1100
 }
 const LEVEL_UPGRADE_COST: Dictionary = {
-	1: 8,
-	2: 14,
-	3: 22,
-	4: 32
+	1: 80,
+	2: 140,
+	3: 220,
+	4: 320
 }
 const DEFENSE_UPGRADE_COST: Dictionary = {
-	1: 6,
-	2: 10,
-	3: 15,
-	4: 21,
-	5: 28
+	10: 60,
+	20: 100,
+	30: 150,
+	40: 210,
+	50: 280
 }
-const PRODUCTION_UPGRADE_STEP: float = 0.4
-const PRODUCTION_UPGRADE_MAX: float = 3.0
-const PRODUCTION_UPGRADE_COST_BASE: int = 7
+const PRODUCTION_UPGRADE_STEP: float = 4.0
+const PRODUCTION_UPGRADE_MAX: float = 30.0
+const PRODUCTION_UPGRADE_COST_BASE: int = 70
 
 var city_id: int
 var name: String
@@ -58,8 +58,8 @@ func _init(
 	p_max_soldiers: int,
 	p_soldiers: int,
 	p_neighbors: Array[int],
-	p_defense: int = 1,
-	p_production_rate: float = 1.0,
+	p_defense: int = 10,
+	p_production_rate: float = 10.0,
 	p_node_type: String = NODE_TYPE_NORMAL
 ) -> void:
 	city_id = p_city_id
@@ -258,9 +258,9 @@ func get_level_upgrade_cost() -> int:
 ## 判断当前城市是否还能继续提升防御。
 ##
 ## 调用场景：升级按钮状态刷新、AI 决策。
-## 主要逻辑：防御目前采用离散整数档位，达到 5 后停止继续提升，避免单城过度难攻。
+## 主要逻辑：防御采用 10 为步长的离散档位，达到 50 后停止继续提升，避免单城过度难攻。
 func can_upgrade_defense() -> bool:
-	return defense < 5
+	return defense < 50
 
 
 ## 返回当前城市升级防御所需的士兵数。
@@ -270,13 +270,13 @@ func can_upgrade_defense() -> bool:
 func get_defense_upgrade_cost() -> int:
 	if not can_upgrade_defense():
 		return 0
-	return int(DEFENSE_UPGRADE_COST.get(defense, 34))
+	return int(DEFENSE_UPGRADE_COST.get(defense, 340))
 
 
 ## 判断当前城市是否还能继续提升产能。
 ##
 ## 调用场景：升级按钮状态刷新、AI 决策。
-## 主要逻辑：产能按 0.4 一档提升，达到 3.0/秒 后停止，让每次升级都能明显改变持续出兵强度，同时避免后期爆兵失控。
+## 主要逻辑：产能按 4.0 一档提升，达到 30.0/秒 后停止，让每次升级都能明显改变持续出兵强度，同时避免后期爆兵失控。
 func can_upgrade_production() -> bool:
 	return production_rate < PRODUCTION_UPGRADE_MAX - 0.001
 
@@ -317,7 +317,7 @@ func apply_level_upgrade() -> void:
 func apply_defense_upgrade() -> void:
 	var cost: int = get_defense_upgrade_cost()
 	remove_soldiers(cost)
-	defense += 1
+	defense += 10
 
 
 ## 应用一次产能升级。

@@ -13,14 +13,14 @@ const CITY_NAME_POOL: Array[String] = [
 	"金陵", "广陵", "姑苏", "晋阳", "涿郡", "琅琊", "番禺", "交州", "武威", "敦煌"
 ]
 const DEFENSE_BY_LEVEL: Dictionary = {
-	1: Vector2i(1, 2),
-	2: Vector2i(2, 3),
-	3: Vector2i(3, 4)
+	1: Vector2i(10, 20),
+	2: Vector2i(20, 30),
+	3: Vector2i(30, 40)
 }
 const PRODUCTION_BY_LEVEL: Dictionary = {
-	1: Vector2(0.8, 1.0),
-	2: Vector2(1.0, 1.3),
-	3: Vector2(1.2, 1.6)
+	1: Vector2(8.0, 10.0),
+	2: Vector2(10.0, 13.0),
+	3: Vector2(12.0, 16.0)
 }
 
 
@@ -43,19 +43,19 @@ func generate_map(city_count: int, random: RandomNumberGenerator, ai_count: int 
 		var max_soldiers: int = int(PrototypeCityStateRef.LEVEL_CAPACITY[level])
 		var defense: int = _roll_defense_for_level(level, random)
 		var production_rate: float = _roll_production_for_level(level, random)
-		var soldiers: int = random.randi_range(3, min(7, max_soldiers))
+		var soldiers: int = random.randi_range(30, min(70, max_soldiers))
 		if owner == PrototypeCityOwnerRef.PLAYER:
 			level = 2
 			max_soldiers = int(PrototypeCityStateRef.LEVEL_CAPACITY[level])
-			defense = 2
-			production_rate = 1.1
-			soldiers = 14
+			defense = 20
+			production_rate = 11.0
+			soldiers = 140
 		elif PrototypeCityOwnerRef.is_ai(owner):
 			level = 2
 			max_soldiers = int(PrototypeCityStateRef.LEVEL_CAPACITY[level])
-			defense = 2
-			production_rate = 1.1
-			soldiers = max(8, 11 - ai_count)
+			defense = 20
+			production_rate = 11.0
+			soldiers = max(80, 110 - ai_count * 10)
 
 		var neighbors: Array[int] = []
 		for neighbor_id: int in graph.get(index, []):
@@ -84,7 +84,7 @@ func generate_map(city_count: int, random: RandomNumberGenerator, ai_count: int 
 ## 调用场景：地图生成流程内部。
 ## 主要逻辑：高等级城市会落在更高的防御区间，让它们更难被正面速推。
 func _roll_defense_for_level(level: int, random: RandomNumberGenerator) -> int:
-	var range_pair: Vector2i = DEFENSE_BY_LEVEL.get(level, Vector2i(1, 2))
+	var range_pair: Vector2i = DEFENSE_BY_LEVEL.get(level, Vector2i(10, 20))
 	return random.randi_range(range_pair.x, range_pair.y)
 
 
@@ -93,7 +93,7 @@ func _roll_defense_for_level(level: int, random: RandomNumberGenerator) -> int:
 ## 调用场景：地图生成流程内部。
 ## 主要逻辑：高等级城市会落在更高的产能区间；产能支持小数，供每秒累计产兵使用。
 func _roll_production_for_level(level: int, random: RandomNumberGenerator) -> float:
-	var range_pair: Vector2 = PRODUCTION_BY_LEVEL.get(level, Vector2(0.8, 1.0))
+	var range_pair: Vector2 = PRODUCTION_BY_LEVEL.get(level, Vector2(8.0, 10.0))
 	return snappedf(random.randf_range(range_pair.x, range_pair.y), 0.1)
 
 

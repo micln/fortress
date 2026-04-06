@@ -357,7 +357,7 @@ func _draw_marching_unit_as_soldiers(unit: Dictionary) -> void:
 	var lane_direction: Vector2 = Vector2(-march_direction.y, march_direction.x)
 	var soldier_radius: float = max(5.0,SOLDIER_VISUAL_RADIUS * _camera_controller.map_zoom)
 	var soldier_spacing: float = max(10.0,SOLDIER_VISUAL_SPACING * _camera_controller.map_zoom)
-	var visible_count: int = min(int(unit["count"]), MAX_VISUAL_SOLDIERS_PER_UNIT)
+	var visible_count: int = min(int(ceil(float(unit["count"]) / 10.0)), MAX_VISUAL_SOLDIERS_PER_UNIT)
 	var lane_offset: float = float(unit.get("visual_lane_offset", 0.0)) * _camera_controller.map_zoom
 	var front_position: Vector2 = _camera_controller.world_to_screen(_get_marching_unit_position(unit)) + lane_direction * lane_offset
 	var unit_color: Color = PrototypeCityOwnerRef.get_color(int(unit["owner"]))

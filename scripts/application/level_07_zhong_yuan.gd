@@ -19,14 +19,14 @@ func get_metadata() -> Dictionary:
 
 func get_city_definitions() -> Array[Dictionary]:
 	return [
-		{"id": 0, "name": "凉州", "position": Vector2(0.15, 0.15), "initial_soldiers": 8, "level": 2, "defense": 2, "production_rate": 1.0, "node_type": "normal"},
-		{"id": 1, "name": "长安", "position": Vector2(0.35, 0.25), "initial_soldiers": 6, "level": 1, "defense": 2, "production_rate": 1.1, "node_type": "pass"},
-		{"id": 2, "name": "洛阳", "position": Vector2(0.55, 0.35), "initial_soldiers": 8, "level": 2, "defense": 2, "production_rate": 1.2, "node_type": "hub"},
-		{"id": 3, "name": "邺城", "position": Vector2(0.8, 0.25), "initial_soldiers": 6, "level": 1, "defense": 2, "production_rate": 1.1, "node_type": "normal"},
-		{"id": 4, "name": "幽州", "position": Vector2(0.9, 0.1), "initial_soldiers": 8, "level": 2, "defense": 2, "production_rate": 1.0, "node_type": "normal"},
-		{"id": 5, "name": "宛城", "position": Vector2(0.45, 0.55), "initial_soldiers": 5, "level": 1, "defense": 1, "production_rate": 1.0, "node_type": "normal"},
-		{"id": 6, "name": "寿春", "position": Vector2(0.7, 0.65), "initial_soldiers": 6, "level": 1, "defense": 1, "production_rate": 1.1, "node_type": "normal"},
-		{"id": 7, "name": "建业", "position": Vector2(0.85, 0.85), "initial_soldiers": 10, "level": 2, "defense": 2, "production_rate": 1.0, "node_type": "heartland"}
+		{"id": 0, "name": "凉州", "position": Vector2(0.15, 0.15), "initial_soldiers": 80, "level": 2, "defense": 20, "production_rate": 10.0, "node_type": "normal"},
+		{"id": 1, "name": "长安", "position": Vector2(0.35, 0.25), "initial_soldiers": 60, "level": 1, "defense": 20, "production_rate": 11.0, "node_type": "pass"},
+		{"id": 2, "name": "洛阳", "position": Vector2(0.55, 0.35), "initial_soldiers": 80, "level": 2, "defense": 20, "production_rate": 12.0, "node_type": "hub"},
+		{"id": 3, "name": "邺城", "position": Vector2(0.8, 0.25), "initial_soldiers": 60, "level": 1, "defense": 20, "production_rate": 11.0, "node_type": "normal"},
+		{"id": 4, "name": "幽州", "position": Vector2(0.9, 0.1), "initial_soldiers": 80, "level": 2, "defense": 20, "production_rate": 10.0, "node_type": "normal"},
+		{"id": 5, "name": "宛城", "position": Vector2(0.45, 0.55), "initial_soldiers": 50, "level": 1, "defense": 10, "production_rate": 10.0, "node_type": "normal"},
+		{"id": 6, "name": "寿春", "position": Vector2(0.7, 0.65), "initial_soldiers": 60, "level": 1, "defense": 10, "production_rate": 11.0, "node_type": "normal"},
+		{"id": 7, "name": "建业", "position": Vector2(0.85, 0.85), "initial_soldiers": 100, "level": 2, "defense": 20, "production_rate": 10.0, "node_type": "heartland"}
 	]
 
 
