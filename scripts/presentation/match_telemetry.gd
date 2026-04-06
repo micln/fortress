@@ -1,4 +1,4 @@
-class_name PrototypeMatchTelemetry
+class_name MatchTelemetry
 extends RefCounted
 
 ## 对局观测与统计收敛器（日志 + 窗口统计）。

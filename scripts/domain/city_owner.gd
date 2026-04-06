@@ -1,4 +1,4 @@
-class_name PrototypeCityOwner
+class_name CityOwner
 extends RefCounted
 
 const NEUTRAL: int = 0

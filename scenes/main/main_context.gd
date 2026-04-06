@@ -1,20 +1,20 @@
 extends Node2D
 
-const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
-const PrototypePresetMapLoaderRef = preload("res://scripts/application/prototype_preset_map_loader.gd")
-const PrototypeBattleServiceRef = preload("res://scripts/application/prototype_battle_service.gd")
-const PrototypeEnemyAiServiceRef = preload("res://scripts/application/prototype_enemy_ai_service.gd")
-const PrototypeOrderDispatchServiceRef = preload("res://scripts/application/prototype_order_dispatch_service.gd")
-const PrototypeTransferArrivalServiceRef = preload("res://scripts/application/prototype_transfer_arrival_service.gd")
-const PrototypeCityViewRef = preload("res://scripts/presentation/prototype_city_view.gd")
+const CityOwnerRef = preload("res://scripts/domain/city_owner.gd")
+const PresetMapLoaderRef = preload("res://scripts/application/preset_map_loader.gd")
+const BattleServiceRef = preload("res://scripts/application/battle_service.gd")
+const EnemyAiServiceRef = preload("res://scripts/application/enemy_ai_service.gd")
+const OrderDispatchServiceRef = preload("res://scripts/application/order_dispatch_service.gd")
+const TransferArrivalServiceRef = preload("res://scripts/application/transfer_arrival_service.gd")
+const CityViewRef = preload("res://scripts/presentation/city_view.gd")
 const AudioManagerRef = preload("res://scripts/presentation/audio_manager.gd")
 const BackgroundRendererRef = preload("res://scripts/presentation/background_renderer.gd")
 const CameraControllerRef = preload("res://scripts/presentation/camera_controller.gd")
-const PrototypeMapRegistryRef = preload("res://scripts/application/prototype_map_registry.gd")
+const MapRegistryRef = preload("res://scripts/application/map_registry.gd")
 const GameStateManagerRef = preload("res://scripts/presentation/game_state_manager.gd")
 const MarchControllerRef = preload("res://scripts/presentation/march_controller.gd")
-const PrototypeMainInputHandlerRef = preload("res://scripts/presentation/prototype_main_input_handler.gd")
-const PrototypeMatchTelemetryRef = preload("res://scripts/presentation/prototype_match_telemetry.gd")
+const MainInputHandlerRef = preload("res://scripts/presentation/main_input_handler.gd")
+const MatchTelemetryRef = preload("res://scripts/presentation/match_telemetry.gd")
 const CITY_SCENE: PackedScene = preload("res://scenes/world/city.tscn")
 const UI_FONT: Font = preload("res://assets/fonts/NotoSansSC-Regular.otf")
 const PAUSE_BUTTON_ICON: Texture2D = preload("res://assets/icons/pause.svg")
@@ -30,9 +30,9 @@ const CITY_ARRIVAL_RADIUS_SCREEN: float = 72.0
 const CONTINUOUS_DISPATCH_BATCH_SIZE: int = 10
 const NARROW_OVERLAY_BREAKPOINT: float = 520.0
 const AI_DIFFICULTY_ITEMS: Array = [
-	{"id": PrototypeEnemyAiServiceRef.DIFFICULTY_EASY, "name": "简单"},
-	{"id": PrototypeEnemyAiServiceRef.DIFFICULTY_NORMAL, "name": "普通"},
-	{"id": PrototypeEnemyAiServiceRef.DIFFICULTY_HARD, "name": "困难"}
+	{"id": EnemyAiServiceRef.DIFFICULTY_EASY, "name": "简单"},
+	{"id": EnemyAiServiceRef.DIFFICULTY_NORMAL, "name": "普通"},
+	{"id": EnemyAiServiceRef.DIFFICULTY_HARD, "name": "困难"}
 ]
 const PLAYER_COUNT_ITEMS: Array = [
 	{"id": 2, "name": "2 方"},
@@ -41,23 +41,23 @@ const PLAYER_COUNT_ITEMS: Array = [
 	{"id": 5, "name": "5 方"}
 ]
 const AI_STYLE_ITEMS: Array = [
-	{"id": PrototypeEnemyAiServiceRef.STYLE_AGGRESSIVE, "name": "进攻型"},
-	{"id": PrototypeEnemyAiServiceRef.STYLE_DEFENSIVE, "name": "防御型"}
+	{"id": EnemyAiServiceRef.STYLE_AGGRESSIVE, "name": "进攻型"},
+	{"id": EnemyAiServiceRef.STYLE_DEFENSIVE, "name": "防御型"}
 ]
 
 var _random: RandomNumberGenerator = RandomNumberGenerator.new()
-var _preset_map_loader = PrototypePresetMapLoaderRef.new()
-var _battle_service = PrototypeBattleServiceRef.new()
-var _enemy_ai_service = PrototypeEnemyAiServiceRef.new()
-var _order_dispatch_service = PrototypeOrderDispatchServiceRef.new()
-var _transfer_arrival_service = PrototypeTransferArrivalServiceRef.new()
+var _preset_map_loader = PresetMapLoaderRef.new()
+var _battle_service = BattleServiceRef.new()
+var _enemy_ai_service = EnemyAiServiceRef.new()
+var _order_dispatch_service = OrderDispatchServiceRef.new()
+var _transfer_arrival_service = TransferArrivalServiceRef.new()
 var _audio_manager = AudioManagerRef.new()
 var _background_renderer = BackgroundRendererRef.new()
 var _camera_controller = CameraControllerRef.new()
 var _game_state_manager = GameStateManagerRef.new()
 var _march_controller = MarchControllerRef.new()
-var _input_handler = PrototypeMainInputHandlerRef.new()
-var _telemetry = PrototypeMatchTelemetryRef.new()
+var _input_handler = MainInputHandlerRef.new()
+var _telemetry = MatchTelemetryRef.new()
 var _cities: Array = []
 var _city_views: Dictionary = {}
 var _marching_units: Array = []
@@ -69,10 +69,10 @@ var _game_over: bool = false
 var _game_started: bool = false
 var _manual_paused: bool = false
 var _overlay_mode: String = "start"
-var _last_winner: int = PrototypeCityOwnerRef.NEUTRAL
+var _last_winner: int = CityOwnerRef.NEUTRAL
 var _player_count: int = 5
-var _ai_difficulty: String = PrototypeEnemyAiServiceRef.DIFFICULTY_EASY
-var _ai_style: String = PrototypeEnemyAiServiceRef.STYLE_DEFENSIVE
+var _ai_difficulty: String = EnemyAiServiceRef.DIFFICULTY_EASY
+var _ai_style: String = EnemyAiServiceRef.STYLE_DEFENSIVE
 var _current_map_id: String = ""
 var _last_window_resize_frame: int = -1
 
@@ -103,7 +103,7 @@ func _input_get_selected_city_id() -> int:
 
 ## 返回当前地图偏移，供输入处理模块计算拖拽增量。
 ##
-## 调用场景：PrototypeMainInputHandler 需要读取当前 map_offset 时。
+## 调用场景：MainInputHandler 需要读取当前 map_offset 时。
 ## 主要逻辑：直接返回 CameraController 当前维护的 map_offset。
 func _get_map_offset() -> Vector2:
 	return _camera_controller.map_offset
@@ -111,7 +111,7 @@ func _get_map_offset() -> Vector2:
 
 ## 返回当前地图缩放倍率，供输入处理模块计算滚轮或双指缩放。
 ##
-## 调用场景：PrototypeMainInputHandler 需要读取当前 map_zoom 时。
+## 调用场景：MainInputHandler 需要读取当前 map_zoom 时。
 ## 主要逻辑：直接返回 CameraController 当前维护的 map_zoom。
 func _get_map_zoom() -> float:
 	return _camera_controller.map_zoom
@@ -119,7 +119,7 @@ func _get_map_zoom() -> float:
 
 ## 消费当前输入事件，避免同一轮事件继续触发其他节点逻辑。
 ##
-## 调用场景：PrototypeMainInputHandler 识别到拖拽/缩放并希望阻止后续点击语义时。
+## 调用场景：MainInputHandler 识别到拖拽/缩放并希望阻止后续点击语义时。
 ## 主要逻辑：调用 viewport 的 `set_input_as_handled()` 标记事件已处理。
 func _consume_input() -> void:
 	get_viewport().set_input_as_handled()
@@ -182,7 +182,7 @@ func _can_start_map_drag(pointer_position: Vector2) -> bool:
 ##
 ## 调用场景：鼠标左键按下或单指触摸开始时。
 ## 主要逻辑：缓存指针种类、编号和起点，后续只有同一指针移动超过阈值才会进入拖拽态。
-## 该类手势处理逻辑已迁移到 PrototypeMainInputHandler，保留文档位避免重复实现。
+## 该类手势处理逻辑已迁移到 MainInputHandler，保留文档位避免重复实现。
 
 
 ## 消耗一次“选城后短时间内不要立刻取消”的保护计数。
@@ -190,7 +190,7 @@ func _can_start_map_drag(pointer_position: Vector2) -> bool:
 ## 调用场景：鼠标或触摸抬起、准备执行空白取消选城前。
 ## 主要逻辑：城市节点完成选中后，浏览器或引擎可能继续派发同一轮触摸对应的抬起事件；
 ## 这里保留一个极短的保护窗口，吞掉随后的取消请求，避免移动端首点城市后立即被清空。
-## 已迁移到 PrototypeMainInputHandler（_consume_selection_cancel_guard）。这里不再保留旧实现，避免重复状态。
+## 已迁移到 MainInputHandler（_consume_selection_cancel_guard）。这里不再保留旧实现，避免重复状态。
 
 
 ## 打印当前全部城市的世界坐标与屏幕坐标，便于排查移动端点击命中问题。
@@ -303,7 +303,7 @@ func _sync_audio_pause_state() -> void:
 ## 调用场景：鼠标左键或单点触控按下时。
 ## 主要逻辑：这里只处理拖拽相关的按下、移动和释放；选城取消交给 `_unhandled_input()`，
 ## 这样城市节点一旦消费了点击，空白取消逻辑就不会再重复执行。
-## 地图拖拽/缩放相关输入逻辑已迁移到 `PrototypeMainInputHandler`。
+## 地图拖拽/缩放相关输入逻辑已迁移到 `MainInputHandler`。
 ## 这里不再保留旧实现，避免出现两套手势状态机导致行为分歧。
 
 
@@ -313,7 +313,7 @@ func _sync_audio_pause_state() -> void:
 ## 主要逻辑：先吞掉紧跟在选城后的兼容事件，再检查是否真的点在纯战场空白处；只有满足条件时才取消当前选中城市。
 func _pick_city_at_position(pointer_position: Vector2) -> int:
 	for city_id in _city_views.keys():
-		var city_view: PrototypeCityView = _city_views[city_id]
+		var city_view: CityView = _city_views[city_id]
 		var hitbox_position: Vector2 = city_view.global_position + Vector2(-70.0, -44.0)
 		var hitbox_size: Vector2 = Vector2(140.0, 170.0)
 		var city_rect := Rect2(hitbox_position, hitbox_size)
@@ -340,10 +340,10 @@ func _should_ignore_selection_cancel(pointer_position: Vector2) -> bool:
 ##
 ## 调用场景：玩家点击底部暂停按钮时。
 ## 主要逻辑：保留当前战场状态，只打开覆盖层显示继续按钮和当前电脑设置。
-func _refresh_overlay_content(winner: int = PrototypeCityOwnerRef.NEUTRAL) -> void:
+func _refresh_overlay_content(winner: int = CityOwnerRef.NEUTRAL) -> void:
 	if not is_node_ready():
 		return
-	if winner == PrototypeCityOwnerRef.NEUTRAL and _overlay_mode == "game_over":
+	if winner == CityOwnerRef.NEUTRAL and _overlay_mode == "game_over":
 		winner = _last_winner
 
 	match _overlay_mode:
@@ -357,12 +357,12 @@ func _refresh_overlay_content(winner: int = PrototypeCityOwnerRef.NEUTRAL) -> vo
 			overlay_action_button.text = "继续游戏"
 		"game_over":
 			overlay_settings_grid.visible = false
-			if winner == PrototypeCityOwnerRef.PLAYER:
+			if winner == CityOwnerRef.PLAYER:
 				overlay_title_label.text = "你赢了"
 				overlay_body_label.text = "你已经拿下全部敌方城市。"
 			else:
-				overlay_title_label.text = "%s 获胜" % PrototypeCityOwnerRef.get_owner_name(winner)
-				overlay_body_label.text = "%s 成为了地图上最后的统治者。" % PrototypeCityOwnerRef.get_owner_name(winner)
+				overlay_title_label.text = "%s 获胜" % CityOwnerRef.get_owner_name(winner)
+				overlay_body_label.text = "%s 成为了地图上最后的统治者。" % CityOwnerRef.get_owner_name(winner)
 			overlay_rule_label.text = "点击下方按钮重新开始，可更换地图再战。"
 			overlay_rule_label_2.text = ""
 			overlay_rule_label_3.text = ""
@@ -427,7 +427,7 @@ func _get_ai_style_name(style: String) -> String:
 func _get_active_ai_owners() -> Array[int]:
 	var owners: Dictionary = {}
 	for city in _cities:
-		if PrototypeCityOwnerRef.is_ai(city.owner):
+		if CityOwnerRef.is_ai(city.owner):
 			owners[city.owner] = true
 	var owner_ids: Array[int] = []
 	for owner_id in owners.keys():

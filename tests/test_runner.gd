@@ -1,14 +1,14 @@
 extends SceneTree
 
-const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
-const PrototypeCityStateRef = preload("res://scripts/domain/prototype_city_state.gd")
-const PrototypeBattleServiceRef = preload("res://scripts/application/prototype_battle_service.gd")
-const PrototypeEnemyAiServiceRef = preload("res://scripts/application/prototype_enemy_ai_service.gd")
-const PrototypeOrderDispatchServiceRef = preload("res://scripts/application/prototype_order_dispatch_service.gd")
-const PrototypeTransferArrivalServiceRef = preload("res://scripts/application/prototype_transfer_arrival_service.gd")
-const PrototypeMapGeneratorRef = preload("res://scripts/application/prototype_map_generator.gd")
-const PrototypePresetMapDefinitionRef = preload("res://scripts/application/prototype_preset_map_definition.gd")
-const PrototypePresetMapLoaderRef = preload("res://scripts/application/prototype_preset_map_loader.gd")
+const CityOwnerRef = preload("res://scripts/domain/city_owner.gd")
+const CityStateRef = preload("res://scripts/domain/city_state.gd")
+const BattleServiceRef = preload("res://scripts/application/battle_service.gd")
+const EnemyAiServiceRef = preload("res://scripts/application/enemy_ai_service.gd")
+const OrderDispatchServiceRef = preload("res://scripts/application/order_dispatch_service.gd")
+const TransferArrivalServiceRef = preload("res://scripts/application/transfer_arrival_service.gd")
+const MapGeneratorRef = preload("res://scripts/application/map_generator.gd")
+const PresetMapDefinitionRef = preload("res://scripts/application/preset_map_definition.gd")
+const PresetMapLoaderRef = preload("res://scripts/application/preset_map_loader.gd")
 
 var _friendly_transfer_dispatch_test_target
 var _friendly_transfer_dispatch_test_count: int = 0
@@ -70,7 +70,7 @@ func _initialize() -> void:
 	_run_test("strategic_pass_increases_defense", Callable(self, "_test_strategic_pass_increases_defense"), failures)
 	_run_test("strategic_hub_increases_production", Callable(self, "_test_strategic_hub_increases_production"), failures)
 	_run_test("strategic_heartland_increases_initial_soldiers", Callable(self, "_test_strategic_heartland_increases_initial_soldiers"), failures)
-	_run_test("project_main_scene_still_prototype_main", Callable(self, "_test_project_main_scene_still_prototype_main"), failures)
+	_run_test("project_main_scene_still_main", Callable(self, "_test_project_main_scene_still_main"), failures)
 	_run_test("legacy_main_chain_removed", Callable(self, "_test_legacy_main_chain_removed"), failures)
 
 	if failures.is_empty():
@@ -98,11 +98,11 @@ func _run_test(test_name: String, callable: Callable, failures: Array[String]) -
 ## 调用场景：出兵准备阶段规则回归测试。
 ## 主要逻辑：构造 10 打 6 的样例，检查只派出 7 人，源城市保留 3 人等待后续局势发展。
 func _test_attack_prepare_capture() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var source = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 10, [1])
-	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 1, 20, 6, [0])
+	var battle_service = BattleServiceRef.new()
+	var source = CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.PLAYER, 2, 35, 10, [1])
+	var target = CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.AI_OWNER_START, 1, 20, 6, [0])
 	var result: Dictionary = battle_service.prepare_attack(source, target, 0.4, 7)
-	return result.get("count", 0) == 7 and source.soldiers == 3 and target.owner == PrototypeCityOwnerRef.AI_OWNER_START and target.soldiers == 6
+	return result.get("count", 0) == 7 and source.soldiers == 3 and target.owner == CityOwnerRef.AI_OWNER_START and target.soldiers == 6
 
 
 ## 验证出兵时会把目标城在行军途中可能新增的守军数量预估进去。
@@ -111,9 +111,9 @@ func _test_attack_prepare_capture() -> bool:
 ## 主要逻辑：构造目标城当前 10 人、防御 1、预计路上会再长 1 人的样例，
 ## 检查会派出 13 人而不是只看表面守军的 11 人。
 func _test_attack_prepare_with_predicted_growth() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var source = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 3, 55, 20, [1])
-	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 2, 35, 10, [0], 1, 1.0)
+	var battle_service = BattleServiceRef.new()
+	var source = CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.PLAYER, 3, 55, 20, [1])
+	var target = CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.AI_OWNER_START, 2, 35, 10, [0], 1, 1.0)
 	var recommended_count: int = battle_service.get_recommended_attack_count(source, target, 1.2)
 	var result: Dictionary = battle_service.prepare_attack(source, target, 1.2, recommended_count)
 	return recommended_count == 13 and result.get("count", 0) == 13 and source.soldiers == 7
@@ -124,9 +124,9 @@ func _test_attack_prepare_with_predicted_growth() -> bool:
 ## 调用场景：出兵准备阶段引入城市防御属性后的回归测试。
 ## 主要逻辑：构造表面守军不高但防御值偏高的目标城，检查系统推荐人数会把防御门槛算进去。
 func _test_attack_prepare_with_defense() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var source = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 15, [1])
-	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 1, 20, 5, [0], 3, 0.8)
+	var battle_service = BattleServiceRef.new()
+	var source = CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.PLAYER, 2, 35, 15, [1])
+	var target = CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.AI_OWNER_START, 1, 20, 5, [0], 3, 0.8)
 	return battle_service.get_recommended_attack_count(source, target, 0.5) == 9
 
 
@@ -135,10 +135,10 @@ func _test_attack_prepare_with_defense() -> bool:
 ## 调用场景：进攻到达阶段规则回归测试。
 ## 主要逻辑：构造 8 人到达 6 守军、防御 2 的城市样例，检查目标被占领且留下 1 人驻守。
 func _test_attack_arrival_capture() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 1, 20, 6, [0], 2, 1.0)
-	var result: Dictionary = battle_service.resolve_attack_arrival(target, PrototypeCityOwnerRef.PLAYER, 8)
-	return result.get("captured", false) and target.owner == PrototypeCityOwnerRef.PLAYER and target.soldiers == 1
+	var battle_service = BattleServiceRef.new()
+	var target = CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.AI_OWNER_START, 1, 20, 6, [0], 2, 1.0)
+	var result: Dictionary = battle_service.resolve_attack_arrival(target, CityOwnerRef.PLAYER, 8)
+	return result.get("captured", false) and target.owner == CityOwnerRef.PLAYER and target.soldiers == 1
 
 
 ## 验证攻守人数相等时也会占领目标城市，避免出现 0 人未占领的违和状态。
@@ -146,10 +146,10 @@ func _test_attack_arrival_capture() -> bool:
 ## 调用场景：进攻到达阶段规则回归测试。
 ## 主要逻辑：构造 8 人到达“6 守军 + 2 防御”的城市样例，检查目标会被占领且至少留下 1 人驻守。
 func _test_attack_arrival_equal_capture() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 1, 20, 6, [0], 2, 1.0)
-	var result: Dictionary = battle_service.resolve_attack_arrival(target, PrototypeCityOwnerRef.PLAYER, 8)
-	return result.get("captured", false) and target.owner == PrototypeCityOwnerRef.PLAYER and target.soldiers == 1
+	var battle_service = BattleServiceRef.new()
+	var target = CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.AI_OWNER_START, 1, 20, 6, [0], 2, 1.0)
+	var result: Dictionary = battle_service.resolve_attack_arrival(target, CityOwnerRef.PLAYER, 8)
+	return result.get("captured", false) and target.owner == CityOwnerRef.PLAYER and target.soldiers == 1
 
 
 ## 验证进攻行军到达时若兵力不足，只会消耗守军，不会改变归属。
@@ -157,10 +157,10 @@ func _test_attack_arrival_equal_capture() -> bool:
 ## 调用场景：进攻到达阶段规则回归测试。
 ## 主要逻辑：构造 4 人到达 9 守军、防御 2 的城市样例，检查目标仍归原阵营且守军减少为 5。
 func _test_attack_arrival_fail() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 2, 35, 9, [0], 2, 1.0)
-	battle_service.resolve_attack_arrival(target, PrototypeCityOwnerRef.PLAYER, 4)
-	return target.owner == PrototypeCityOwnerRef.AI_OWNER_START and target.soldiers == 5
+	var battle_service = BattleServiceRef.new()
+	var target = CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.AI_OWNER_START, 2, 35, 9, [0], 2, 1.0)
+	battle_service.resolve_attack_arrival(target, CityOwnerRef.PLAYER, 4)
+	return target.owner == CityOwnerRef.AI_OWNER_START and target.soldiers == 5
 
 
 ## 验证中立空城不会因为防御值而阻止首次占领。
@@ -168,10 +168,10 @@ func _test_attack_arrival_fail() -> bool:
 ## 调用场景：AI 或玩家进攻无驻军中立城时。
 ## 主要逻辑：构造一座守军为 0、带有防御属性的中立城市，检查只要有 1 人到达就能成功占领。
 func _test_attack_arrival_neutral_empty_city() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.NEUTRAL, 1, 20, 0, [0], 3, 1.0)
-	var result: Dictionary = battle_service.resolve_attack_arrival(target, PrototypeCityOwnerRef.AI_OWNER_START, 1)
-	return result.get("captured", false) and target.owner == PrototypeCityOwnerRef.AI_OWNER_START and target.soldiers == 1
+	var battle_service = BattleServiceRef.new()
+	var target = CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.NEUTRAL, 1, 20, 0, [0], 3, 1.0)
+	var result: Dictionary = battle_service.resolve_attack_arrival(target, CityOwnerRef.AI_OWNER_START, 1)
+	return result.get("captured", false) and target.owner == CityOwnerRef.AI_OWNER_START and target.soldiers == 1
 
 
 ## 验证已占领但守军为 0 的空城，不会因为防御值导致“有兵到达却无法占领”。
@@ -179,10 +179,10 @@ func _test_attack_arrival_neutral_empty_city() -> bool:
 ## 调用场景：持续出兵高频小股进攻时的规则回归测试。
 ## 主要逻辑：构造一座归属敌方但守军为 0、防御为 3 的空城，检查 1 人到达即可占领。
 func _test_attack_arrival_occupied_empty_city_without_defense_block() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 1, 20, 0, [0], 3, 1.0)
-	var result: Dictionary = battle_service.resolve_attack_arrival(target, PrototypeCityOwnerRef.PLAYER, 1)
-	return result.get("captured", false) and target.owner == PrototypeCityOwnerRef.PLAYER and target.soldiers == 1
+	var battle_service = BattleServiceRef.new()
+	var target = CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.AI_OWNER_START, 1, 20, 0, [0], 3, 1.0)
+	var result: Dictionary = battle_service.resolve_attack_arrival(target, CityOwnerRef.PLAYER, 1)
+	return result.get("captured", false) and target.owner == CityOwnerRef.PLAYER and target.soldiers == 1
 
 
 ## 验证同一帧多方进攻同时抵达中立城时，会先做攻方互耗，避免先后顺序决定结果。
@@ -190,14 +190,14 @@ func _test_attack_arrival_occupied_empty_city_without_defense_block() -> bool:
 ## 调用场景：多势力持续出兵同时冲向中立城的回归测试。
 ## 主要逻辑：构造双方各 6 人同帧到达 4 人中立城，检查攻方先同归于尽，中立城守军与归属保持不变。
 func _test_attack_arrival_simultaneous_multi_owner_tie_keeps_defender() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.NEUTRAL, 1, 20, 4, [0], 1, 1.0)
+	var battle_service = BattleServiceRef.new()
+	var target = CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.NEUTRAL, 1, 20, 4, [0], 1, 1.0)
 	var result: Dictionary = battle_service.resolve_simultaneous_attack_arrivals(target, {
-		PrototypeCityOwnerRef.PLAYER: 6,
-		PrototypeCityOwnerRef.AI_OWNER_START: 6
+		CityOwnerRef.PLAYER: 6,
+		CityOwnerRef.AI_OWNER_START: 6
 	})
 	return bool(result.get("attackers_cancelled", false)) \
-		and target.owner == PrototypeCityOwnerRef.NEUTRAL \
+		and target.owner == CityOwnerRef.NEUTRAL \
 		and target.soldiers == 4
 
 
@@ -206,14 +206,14 @@ func _test_attack_arrival_simultaneous_multi_owner_tie_keeps_defender() -> bool:
 ## 调用场景：守城方先升级/调兵后，敌军多路同帧到达的回归测试。
 ## 主要逻辑：构造守方 14 人、防御 2、同帧先收到 8 人增援再被 20 人进攻，检查城市不被攻下且只剩 2 人。
 func _test_attack_arrival_simultaneous_with_defender_reinforcement() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.PLAYER, 3, 55, 14, [0], 2, 1.0)
+	var battle_service = BattleServiceRef.new()
+	var target = CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.PLAYER, 3, 55, 14, [0], 2, 1.0)
 	var result: Dictionary = battle_service.resolve_simultaneous_attack_arrivals(target, {
-		PrototypeCityOwnerRef.PLAYER: 8,
-		PrototypeCityOwnerRef.AI_OWNER_START: 20
+		CityOwnerRef.PLAYER: 8,
+		CityOwnerRef.AI_OWNER_START: 20
 	})
 	return not bool(result.get("captured", false)) \
-		and target.owner == PrototypeCityOwnerRef.PLAYER \
+		and target.owner == CityOwnerRef.PLAYER \
 		and target.soldiers == 2
 
 
@@ -222,12 +222,12 @@ func _test_attack_arrival_simultaneous_with_defender_reinforcement() -> bool:
 ## 调用场景：友军操作规则回归测试。
 ## 主要逻辑：构造两座相邻己方城市，检查源城市只扣除本次运兵数量，目标城市增加兵力，且归属不发生变化。
 func _test_friendly_transfer() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var source = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 7, [1])
-	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.PLAYER, 2, 35, 5, [0])
+	var battle_service = BattleServiceRef.new()
+	var source = CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.PLAYER, 2, 35, 7, [1])
+	var target = CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.PLAYER, 2, 35, 5, [0])
 	var prepare_result: Dictionary = battle_service.prepare_transfer(source, target, 4)
-	var arrival_result: Dictionary = battle_service.resolve_transfer_arrival(target, PrototypeCityOwnerRef.PLAYER, int(prepare_result.get("count", 0)))
-	return bool(prepare_result.get("success", false)) and bool(arrival_result.get("success", false)) and source.soldiers == 3 and target.owner == PrototypeCityOwnerRef.PLAYER and target.soldiers == 9
+	var arrival_result: Dictionary = battle_service.resolve_transfer_arrival(target, CityOwnerRef.PLAYER, int(prepare_result.get("count", 0)))
+	return bool(prepare_result.get("success", false)) and bool(arrival_result.get("success", false)) and source.soldiers == 3 and target.owner == CityOwnerRef.PLAYER and target.soldiers == 9
 
 
 ## 验证友军运兵到满员城市时，会返回溢出人数用于后续持续任务接力，而不是静默吞兵。
@@ -235,9 +235,9 @@ func _test_friendly_transfer() -> bool:
 ## 调用场景：中继城市满员但仍挂有对外持续任务时的规则回归测试。
 ## 主要逻辑：构造目标城只剩 1 格容量却到达 3 人援军，检查实际接收 1 人、溢出 2 人并保留在返回结果中。
 func _test_friendly_transfer_overflow() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.PLAYER, 1, 20, 19, [0])
-	var arrival_result: Dictionary = battle_service.resolve_transfer_arrival(target, PrototypeCityOwnerRef.PLAYER, 3)
+	var battle_service = BattleServiceRef.new()
+	var target = CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.PLAYER, 1, 20, 19, [0])
+	var arrival_result: Dictionary = battle_service.resolve_transfer_arrival(target, CityOwnerRef.PLAYER, 3)
 	return bool(arrival_result.get("success", false)) \
 		and int(arrival_result.get("received_count", -1)) == 1 \
 		and int(arrival_result.get("overflow_count", -1)) == 2 \
@@ -250,8 +250,8 @@ func _test_friendly_transfer_overflow() -> bool:
 ## 主要逻辑：构造一座已满员的中继城，对它连续运入 2 人，并在每次到达后都立刻把 1 人继续派出；
 ## 最终应保持中继城仍满员，同时统计到 2 次继续派发、0 次溢出损失。
 func _test_friendly_transfer_dispatches_each_arrival() -> bool:
-	var transfer_arrival_service = PrototypeTransferArrivalServiceRef.new()
-	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.PLAYER, 1, 20, 20, [0, 2])
+	var transfer_arrival_service = TransferArrivalServiceRef.new()
+	var target = CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.PLAYER, 1, 20, 20, [0, 2])
 	_friendly_transfer_dispatch_test_target = target
 	_friendly_transfer_dispatch_test_count = 0
 	var arrival_result: Dictionary = transfer_arrival_service.resolve_friendly_transfer_arrival(
@@ -288,12 +288,12 @@ func _dispatch_friendly_transfer_test_soldier() -> bool:
 ## 主要逻辑：构造一座已被电脑势力夺取的目标城，检查迟到援军会按正常战斗结算重新夺城；
 ## 引入城市防御后，夺回成功后的留守人数应扣除该防御门槛，而不是直接沿用旧结果。
 func _test_friendly_transfer_to_lost_city() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var source = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 3, 1200, 200, [1], 20, 10.0)
-	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 3, 1200, 50, [0], 10, 10.0)
+	var battle_service = BattleServiceRef.new()
+	var source = CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.PLAYER, 3, 1200, 200, [1], 20, 10.0)
+	var target = CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.AI_OWNER_START, 3, 1200, 50, [0], 10, 10.0)
 	var prepare_result: Dictionary = battle_service.prepare_transfer(source, target, 200)
-	var arrival_result: Dictionary = battle_service.resolve_transfer_arrival(target, PrototypeCityOwnerRef.PLAYER, int(prepare_result.get("count", 0)))
-	return bool(arrival_result.get("retook_after_loss", false)) and target.owner == PrototypeCityOwnerRef.PLAYER and target.soldiers == 140
+	var arrival_result: Dictionary = battle_service.resolve_transfer_arrival(target, CityOwnerRef.PLAYER, int(prepare_result.get("count", 0)))
+	return bool(arrival_result.get("retook_after_loss", false)) and target.owner == CityOwnerRef.PLAYER and target.soldiers == 140
 
 
 ## 验证只有已占领城市会产兵，中立城市不会增长。
@@ -302,11 +302,11 @@ func _test_friendly_transfer_to_lost_city() -> bool:
 ## 主要逻辑：对玩家、电脑势力、中立三类城市执行一次产兵，检查增长结果是否符合规则；
 ## 其中高产能城市应一次多产 1 人。
 func _test_production() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
+	var battle_service = BattleServiceRef.new()
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 1, 20, 3, [1], 1, 1.0),
-		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 1, 20, 4, [0, 2], 1, 1.6),
-		PrototypeCityStateRef.new(2, "C", Vector2.DOWN, PrototypeCityOwnerRef.NEUTRAL, 1, 20, 5, [1], 1, 1.0)
+		CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.PLAYER, 1, 20, 3, [1], 1, 1.0),
+		CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.AI_OWNER_START, 1, 20, 4, [0, 2], 1, 1.6),
+		CityStateRef.new(2, "C", Vector2.DOWN, CityOwnerRef.NEUTRAL, 1, 20, 5, [1], 1, 1.0)
 	]
 	battle_service.produce_soldiers(cities)
 	return cities[0].soldiers == 4 and cities[1].soldiers == 5 and cities[2].soldiers == 5
@@ -317,9 +317,9 @@ func _test_production() -> bool:
 ## 调用场景：城市产能支持非整数速度后的回归测试。
 ## 主要逻辑：构造 1.5 产能城市，连续执行两次产兵，检查结果为总共新增 3 人。
 func _test_production_fractional_rate() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
+	var battle_service = BattleServiceRef.new()
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 10, [1], 1, 1.5)
+		CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.PLAYER, 2, 35, 10, [1], 1, 1.5)
 	]
 	battle_service.produce_soldiers(cities)
 	battle_service.produce_soldiers(cities)
@@ -331,9 +331,9 @@ func _test_production_fractional_rate() -> bool:
 ## 调用场景：等级和上限系统回归测试。
 ## 主要逻辑：构造一座兵力已满的己方城市，执行一次产兵后检查人数保持不变。
 func _test_production_capacity() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
+	var battle_service = BattleServiceRef.new()
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 1, 20, 20, [1], 1, 2.0)
+		CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.PLAYER, 1, 20, 20, [1], 1, 2.0)
 	]
 	battle_service.produce_soldiers(cities)
 	return cities[0].soldiers == 20
@@ -344,7 +344,7 @@ func _test_production_capacity() -> bool:
 ## 调用场景：高产能城市持续运兵/进攻时的时序回归测试。
 ## 主要逻辑：先累计 2.1 的产能，再单步产 1 人、移走 1 人、继续尝试产兵，检查这一秒内总共能产出 2 人而不是只产 1 人。
 func _test_production_single_step_after_capacity_reopens() -> bool:
-	var city = PrototypeCityStateRef.new(0, "长安", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 34, [1], 3, 2.1)
+	var city = CityStateRef.new(0, "长安", Vector2.ZERO, CityOwnerRef.PLAYER, 2, 35, 34, [1], 3, 2.1)
 	city.accumulate_production_progress(1.0)
 	var first_produced: bool = city.try_produce_one_soldier()
 	city.remove_soldiers(1)
@@ -358,7 +358,7 @@ func _test_production_single_step_after_capacity_reopens() -> bool:
 ## 主要逻辑：构造一座满员且产能为 3.0 的城市，累计 1 秒产能后检查可消费次数为 3；
 ## 再手动消费 1 次，检查剩余可消费次数会同步减少。
 func _test_production_ready_count_when_full() -> bool:
-	var city = PrototypeCityStateRef.new(0, "长安", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 35, [1], 3, 3.0)
+	var city = CityStateRef.new(0, "长安", Vector2.ZERO, CityOwnerRef.PLAYER, 2, 35, 35, [1], 3, 3.0)
 	city.accumulate_production_progress(1.0)
 	var ready_before_consume: int = city.get_ready_production_count()
 	var consumed: bool = city.consume_one_ready_production()
@@ -371,7 +371,7 @@ func _test_production_ready_count_when_full() -> bool:
 ## 调用场景：满员且无持续任务时的积压清理回归测试。
 ## 主要逻辑：先累计 3.2 的产能进度，再丢弃整数部分并补 1 秒产能，检查只会产生 1 次就绪产兵而不是 4 次。
 func _test_production_discard_ready_keeps_fraction() -> bool:
-	var city = PrototypeCityStateRef.new(0, "长安", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 35, [1], 2, 1.0)
+	var city = CityStateRef.new(0, "长安", Vector2.ZERO, CityOwnerRef.PLAYER, 2, 35, 35, [1], 2, 1.0)
 	city.accumulate_production_progress(3.2)
 	var dropped_count: int = city.discard_ready_production()
 	city.accumulate_production_progress(1.0)
@@ -384,9 +384,9 @@ func _test_production_discard_ready_keeps_fraction() -> bool:
 ## 调用场景：城市升级系统回归测试。
 ## 主要逻辑：构造一座有足够驻军的己方城市，检查升级后等级、容量和剩余兵力都符合预期。
 func _test_upgrade_level_success() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var city = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 350, 200, [1], 20, 11.0)
-	var result: Dictionary = battle_service.upgrade_city(city, PrototypeBattleServiceRef.UPGRADE_LEVEL)
+	var battle_service = BattleServiceRef.new()
+	var city = CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.PLAYER, 2, 350, 200, [1], 20, 11.0)
+	var result: Dictionary = battle_service.upgrade_city(city, BattleServiceRef.UPGRADE_LEVEL)
 	return bool(result.get("success", false)) and city.level == 3 and city.max_soldiers == 550 and city.soldiers == 60
 
 
@@ -395,9 +395,9 @@ func _test_upgrade_level_success() -> bool:
 ## 调用场景：城市升级系统回归测试。
 ## 主要逻辑：构造一座兵力不足的城市，检查升级失败且属性与兵力都保持不变。
 func _test_upgrade_defense_insufficient() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var city = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 1, 20, 5, [1], 2, 1.0)
-	var result: Dictionary = battle_service.upgrade_city(city, PrototypeBattleServiceRef.UPGRADE_DEFENSE)
+	var battle_service = BattleServiceRef.new()
+	var city = CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.PLAYER, 1, 20, 5, [1], 2, 1.0)
+	var result: Dictionary = battle_service.upgrade_city(city, BattleServiceRef.UPGRADE_DEFENSE)
 	return not bool(result.get("success", true)) and city.defense == 2 and city.soldiers == 5
 
 
@@ -406,9 +406,9 @@ func _test_upgrade_defense_insufficient() -> bool:
 ## 调用场景：城市升级系统回归测试。
 ## 主要逻辑：构造一座可升产的城市，检查一次升级后产能会从 1.0 提升到 1.4，而不是只有很小的 0.1/0.2 增幅。
 func _test_upgrade_production_step() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var city = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 350, 200, [1], 20, 10.0)
-	var result: Dictionary = battle_service.upgrade_city(city, PrototypeBattleServiceRef.UPGRADE_PRODUCTION)
+	var battle_service = BattleServiceRef.new()
+	var city = CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.PLAYER, 2, 350, 200, [1], 20, 10.0)
+	var result: Dictionary = battle_service.upgrade_city(city, BattleServiceRef.UPGRADE_PRODUCTION)
 	return bool(result.get("success", false)) and is_equal_approx(city.production_rate, 14.0)
 
 
@@ -417,9 +417,9 @@ func _test_upgrade_production_step() -> bool:
 ## 调用场景：城市升级系统回归测试。
 ## 主要逻辑：构造一座产能已满的城市，检查升级失败且产能保持不变。
 func _test_upgrade_production_cap() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var city = PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 3, 55, 40, [1], 2, 3.0)
-	var result: Dictionary = battle_service.upgrade_city(city, PrototypeBattleServiceRef.UPGRADE_PRODUCTION)
+	var battle_service = BattleServiceRef.new()
+	var city = CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.PLAYER, 3, 55, 40, [1], 2, 3.0)
+	var result: Dictionary = battle_service.upgrade_city(city, BattleServiceRef.UPGRADE_PRODUCTION)
 	return not bool(result.get("success", true)) and is_equal_approx(city.production_rate, 3.0)
 
 
@@ -428,15 +428,15 @@ func _test_upgrade_production_cap() -> bool:
 ## 调用场景：路上遭遇战规则回归测试。
 ## 主要逻辑：构造 12 人与 5 人的遭遇战，检查胜方保留 7 人继续前进。
 func _test_marching_encounter() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
+	var battle_service = BattleServiceRef.new()
 	var result: Dictionary = battle_service.resolve_marching_encounter(
-		PrototypeCityOwnerRef.PLAYER,
+		CityOwnerRef.PLAYER,
 		12,
-		PrototypeCityOwnerRef.AI_OWNER_START,
+		CityOwnerRef.AI_OWNER_START,
 		5
 	)
 	return not bool(result.get("both_destroyed", true)) \
-		and int(result.get("winner_owner", -1)) == PrototypeCityOwnerRef.PLAYER \
+		and int(result.get("winner_owner", -1)) == CityOwnerRef.PLAYER \
 		and int(result.get("remaining_count", -1)) == 7
 
 
@@ -445,11 +445,11 @@ func _test_marching_encounter() -> bool:
 ## 调用场景：路上遭遇战规则回归测试。
 ## 主要逻辑：构造 8 人对 8 人的遭遇战，检查双方都被消灭。
 func _test_marching_encounter_draw() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
+	var battle_service = BattleServiceRef.new()
 	var result: Dictionary = battle_service.resolve_marching_encounter(
-		PrototypeCityOwnerRef.PLAYER,
+		CityOwnerRef.PLAYER,
 		8,
-		PrototypeCityOwnerRef.AI_OWNER_START,
+		CityOwnerRef.AI_OWNER_START,
 		8
 	)
 	return bool(result.get("both_destroyed", false)) and int(result.get("remaining_count", -1)) == 0
@@ -460,12 +460,12 @@ func _test_marching_encounter_draw() -> bool:
 ## 调用场景：胜负规则回归测试。
 ## 主要逻辑：构造只剩玩家城市的局面，检查赢家是否为玩家。
 func _test_winner() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
+	var battle_service = BattleServiceRef.new()
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 1, 20, 3, [1]),
-		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.PLAYER, 1, 20, 4, [0])
+		CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.PLAYER, 1, 20, 3, [1]),
+		CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.PLAYER, 1, 20, 4, [0])
 	]
-	return battle_service.get_winner(cities) == PrototypeCityOwnerRef.PLAYER
+	return battle_service.get_winner(cities) == CityOwnerRef.PLAYER
 
 
 ## 验证多电脑势力混战时，只剩最后一个阵营后也能正确判定获胜方。
@@ -473,12 +473,12 @@ func _test_winner() -> bool:
 ## 调用场景：多势力胜负规则回归测试。
 ## 主要逻辑：构造玩家已灭亡、只剩一支电脑势力占城的局面，检查赢家为对应电脑阵营编号。
 func _test_winner_multi_ai() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
+	var battle_service = BattleServiceRef.new()
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.AI_OWNER_START + 1, 2, 35, 8, [1]),
-		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START + 1, 1, 20, 5, [0])
+		CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.AI_OWNER_START + 1, 2, 35, 8, [1]),
+		CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.AI_OWNER_START + 1, 1, 20, 5, [0])
 	]
-	return battle_service.get_winner(cities) == PrototypeCityOwnerRef.AI_OWNER_START + 1
+	return battle_service.get_winner(cities) == CityOwnerRef.AI_OWNER_START + 1
 
 
 ## 验证敌军 AI 会优先选择具备优势的可攻击目标。
@@ -487,15 +487,15 @@ func _test_winner_multi_ai() -> bool:
 ## 主要逻辑：构造一个敌军强城相邻玩家弱城的局面，检查 AI 是否返回该攻击组合；
 ## 目标城的防御与产能属性也应被纳入推荐兵力与评分。
 func _test_enemy_ai() -> bool:
-	var ai_service = PrototypeEnemyAiServiceRef.new()
-	ai_service.configure(PrototypeEnemyAiServiceRef.DIFFICULTY_NORMAL, PrototypeEnemyAiServiceRef.STYLE_AGGRESSIVE)
+	var ai_service = EnemyAiServiceRef.new()
+	ai_service.configure(EnemyAiServiceRef.DIFFICULTY_NORMAL, EnemyAiServiceRef.STYLE_AGGRESSIVE)
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.AI_OWNER_START, 2, 350, 80, [1], 20, 10.0),
-		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.PLAYER, 1, 200, 30, [0, 2], 10, 13.0),
-		PrototypeCityStateRef.new(2, "C", Vector2.DOWN, PrototypeCityOwnerRef.AI_OWNER_START, 1, 200, 20, [1], 10, 10.0)
+		CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.AI_OWNER_START, 2, 350, 80, [1], 20, 10.0),
+		CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.PLAYER, 1, 200, 30, [0, 2], 10, 13.0),
+		CityStateRef.new(2, "C", Vector2.DOWN, CityOwnerRef.AI_OWNER_START, 1, 200, 20, [1], 10, 10.0)
 	]
-	var battle_service = PrototypeBattleServiceRef.new()
-	var decision: Dictionary = ai_service.choose_attack(cities, battle_service, PrototypeCityOwnerRef.AI_OWNER_START)
+	var battle_service = BattleServiceRef.new()
+	var decision: Dictionary = ai_service.choose_attack(cities, battle_service, CityOwnerRef.AI_OWNER_START)
 	return int(decision.get("source_id", -1)) == 0 and int(decision.get("target_id", -1)) == 1 and int(decision.get("troop_count", 0)) >= 50
 
 
@@ -505,18 +505,18 @@ func _test_enemy_ai() -> bool:
 ## 主要逻辑：检查困难进攻型比简单防御型行动更快，并在同一局面下更愿意压上兵力直接攻击玩家城市；
 ## 同时验证目标防御/产能也会影响评分。
 func _test_enemy_ai_profile() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
+	var battle_service = BattleServiceRef.new()
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.AI_OWNER_START, 3, 550, 120, [1, 2], 20, 12.0),
-		PrototypeCityStateRef.new(1, "B", Vector2(120, 0), PrototypeCityOwnerRef.PLAYER, 2, 350, 70, [0], 10, 15.0),
-		PrototypeCityStateRef.new(2, "C", Vector2(90, 70), PrototypeCityOwnerRef.NEUTRAL, 1, 200, 40, [0], 30, 8.0)
+		CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.AI_OWNER_START, 3, 550, 120, [1, 2], 20, 12.0),
+		CityStateRef.new(1, "B", Vector2(120, 0), CityOwnerRef.PLAYER, 2, 350, 70, [0], 10, 15.0),
+		CityStateRef.new(2, "C", Vector2(90, 70), CityOwnerRef.NEUTRAL, 1, 200, 40, [0], 30, 8.0)
 	]
-	var aggressive_ai = PrototypeEnemyAiServiceRef.new()
-	aggressive_ai.configure(PrototypeEnemyAiServiceRef.DIFFICULTY_HARD, PrototypeEnemyAiServiceRef.STYLE_AGGRESSIVE)
-	var defensive_ai = PrototypeEnemyAiServiceRef.new()
-	defensive_ai.configure(PrototypeEnemyAiServiceRef.DIFFICULTY_EASY, PrototypeEnemyAiServiceRef.STYLE_DEFENSIVE)
-	var aggressive_decision: Dictionary = aggressive_ai.choose_attack(cities, battle_service, PrototypeCityOwnerRef.AI_OWNER_START)
-	var defensive_decision: Dictionary = defensive_ai.choose_attack(cities, battle_service, PrototypeCityOwnerRef.AI_OWNER_START)
+	var aggressive_ai = EnemyAiServiceRef.new()
+	aggressive_ai.configure(EnemyAiServiceRef.DIFFICULTY_HARD, EnemyAiServiceRef.STYLE_AGGRESSIVE)
+	var defensive_ai = EnemyAiServiceRef.new()
+	defensive_ai.configure(EnemyAiServiceRef.DIFFICULTY_EASY, EnemyAiServiceRef.STYLE_DEFENSIVE)
+	var aggressive_decision: Dictionary = aggressive_ai.choose_attack(cities, battle_service, CityOwnerRef.AI_OWNER_START)
+	var defensive_decision: Dictionary = defensive_ai.choose_attack(cities, battle_service, CityOwnerRef.AI_OWNER_START)
 	return aggressive_ai.get_turn_interval() < defensive_ai.get_turn_interval() \
 		and int(aggressive_decision.get("target_id", -1)) == 1 \
 		and int(aggressive_decision.get("troop_count", 0)) > int(defensive_decision.get("troop_count", 0))
@@ -528,15 +528,15 @@ func _test_enemy_ai_profile() -> bool:
 ## 主要逻辑：构造一个玩家城市更远且更难打、另一家电脑城市更近且更脆弱的局面，
 ## 检查进攻型 AI 会优先拿下更高性价比的非玩家目标，而不是固定只追着玩家打。
 func _test_enemy_ai_aggressive_not_player_only() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
+	var battle_service = BattleServiceRef.new()
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.AI_OWNER_START, 3, 550, 120, [1, 2], 20, 10.0),
-		PrototypeCityStateRef.new(1, "B", Vector2(220, 0), PrototypeCityOwnerRef.PLAYER, 2, 350, 80, [0], 30, 14.0),
-		PrototypeCityStateRef.new(2, "C", Vector2(90, 20), PrototypeCityOwnerRef.AI_OWNER_START + 1, 1, 200, 40, [0], 10, 10.0)
+		CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.AI_OWNER_START, 3, 550, 120, [1, 2], 20, 10.0),
+		CityStateRef.new(1, "B", Vector2(220, 0), CityOwnerRef.PLAYER, 2, 350, 80, [0], 30, 14.0),
+		CityStateRef.new(2, "C", Vector2(90, 20), CityOwnerRef.AI_OWNER_START + 1, 1, 200, 40, [0], 10, 10.0)
 	]
-	var aggressive_ai = PrototypeEnemyAiServiceRef.new()
-	aggressive_ai.configure(PrototypeEnemyAiServiceRef.DIFFICULTY_HARD, PrototypeEnemyAiServiceRef.STYLE_AGGRESSIVE)
-	var decision: Dictionary = aggressive_ai.choose_attack(cities, battle_service, PrototypeCityOwnerRef.AI_OWNER_START)
+	var aggressive_ai = EnemyAiServiceRef.new()
+	aggressive_ai.configure(EnemyAiServiceRef.DIFFICULTY_HARD, EnemyAiServiceRef.STYLE_AGGRESSIVE)
+	var decision: Dictionary = aggressive_ai.choose_attack(cities, battle_service, CityOwnerRef.AI_OWNER_START)
 	return int(decision.get("source_id", -1)) == 0 \
 		and int(decision.get("target_id", -1)) == 2 \
 		and int(decision.get("troop_count", 0)) >= 60
@@ -547,17 +547,17 @@ func _test_enemy_ai_aggressive_not_player_only() -> bool:
 ## 调用场景：AI 城市经营回归测试。
 ## 主要逻辑：构造一座高兵力但周边都不适合进攻的城市，检查 AI 至少会返回一条合法升级决策。
 func _test_enemy_ai_upgrade() -> bool:
-	var battle_service = PrototypeBattleServiceRef.new()
-	var ai_service = PrototypeEnemyAiServiceRef.new()
-	ai_service.configure(PrototypeEnemyAiServiceRef.DIFFICULTY_NORMAL, PrototypeEnemyAiServiceRef.STYLE_DEFENSIVE)
+	var battle_service = BattleServiceRef.new()
+	var ai_service = EnemyAiServiceRef.new()
+	ai_service.configure(EnemyAiServiceRef.DIFFICULTY_NORMAL, EnemyAiServiceRef.STYLE_DEFENSIVE)
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.AI_OWNER_START, 2, 350, 260, [1], 20, 10.0),
-		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.PLAYER, 3, 550, 220, [0], 40, 16.0)
+		CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.AI_OWNER_START, 2, 350, 260, [1], 20, 10.0),
+		CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.PLAYER, 3, 550, 220, [0], 40, 16.0)
 	]
-	var decision: Dictionary = ai_service.choose_upgrade(cities, battle_service, PrototypeCityOwnerRef.AI_OWNER_START)
+	var decision: Dictionary = ai_service.choose_upgrade(cities, battle_service, CityOwnerRef.AI_OWNER_START)
 	return not decision.is_empty() \
 		and int(decision.get("city_id", -1)) == 0 \
-		and String(decision.get("upgrade_type", "")) in [PrototypeBattleServiceRef.UPGRADE_LEVEL, PrototypeBattleServiceRef.UPGRADE_DEFENSE, PrototypeBattleServiceRef.UPGRADE_PRODUCTION]
+		and String(decision.get("upgrade_type", "")) in [BattleServiceRef.UPGRADE_LEVEL, BattleServiceRef.UPGRADE_DEFENSE, BattleServiceRef.UPGRADE_PRODUCTION]
 
 
 ## 验证单条持续出兵路线在源城每次产兵后都会稳定返回一次派兵描述。
@@ -565,10 +565,10 @@ func _test_enemy_ai_upgrade() -> bool:
 ## 调用场景：持续出兵调度服务回归测试。
 ## 主要逻辑：创建一条 `A -> B` 路线，检查调度结果会固定派出 10 人，并根据目标归属返回进攻模式。
 func _test_continuous_order_dispatch_single_route() -> bool:
-	var service = PrototypeOrderDispatchServiceRef.new()
+	var service = OrderDispatchServiceRef.new()
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 350, 50, [1]),
-		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 1, 200, 30, [0])
+		CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.PLAYER, 2, 350, 50, [1]),
+		CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.AI_OWNER_START, 1, 200, 30, [0])
 	]
 	service.ensure_continuous_order(0, 1)
 	var result: Dictionary = service.dispatch_for_source(cities, 0)
@@ -584,11 +584,11 @@ func _test_continuous_order_dispatch_single_route() -> bool:
 ## 调用场景：持续出兵调度服务回归测试。
 ## 主要逻辑：给同一源城注册两个目标，连续调度两次，检查目标编号会轮流切换而不是总打第一条。
 func _test_continuous_order_dispatch_round_robin() -> bool:
-	var service = PrototypeOrderDispatchServiceRef.new()
+	var service = OrderDispatchServiceRef.new()
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 6, [1, 2]),
-		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 1, 20, 3, [0]),
-		PrototypeCityStateRef.new(2, "C", Vector2.DOWN, PrototypeCityOwnerRef.PLAYER, 1, 20, 2, [0])
+		CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.PLAYER, 2, 35, 6, [1, 2]),
+		CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.AI_OWNER_START, 1, 20, 3, [0]),
+		CityStateRef.new(2, "C", Vector2.DOWN, CityOwnerRef.PLAYER, 1, 20, 2, [0])
 	]
 	service.ensure_continuous_order(0, 1)
 	service.ensure_continuous_order(0, 2)
@@ -605,14 +605,14 @@ func _test_continuous_order_dispatch_round_robin() -> bool:
 ## 调用场景：持续出兵调度服务回归测试。
 ## 主要逻辑：先让目标是敌城，再改成己方城，检查同一条路线仍然存在，且调度结果从进攻切成运兵。
 func _test_continuous_order_target_owner_change_keeps_route() -> bool:
-	var service = PrototypeOrderDispatchServiceRef.new()
+	var service = OrderDispatchServiceRef.new()
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "A", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 6, [1]),
-		PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 1, 20, 3, [0])
+		CityStateRef.new(0, "A", Vector2.ZERO, CityOwnerRef.PLAYER, 2, 35, 6, [1]),
+		CityStateRef.new(1, "B", Vector2.RIGHT, CityOwnerRef.AI_OWNER_START, 1, 20, 3, [0])
 	]
 	service.ensure_continuous_order(0, 1)
 	var first_result: Dictionary = service.dispatch_for_source(cities, 0)
-	cities[1].owner = PrototypeCityOwnerRef.PLAYER
+	cities[1].owner = CityOwnerRef.PLAYER
 	var second_result: Dictionary = service.dispatch_for_source(cities, 0)
 	return service.get_order_count_for_source(0) == 1 \
 		and not bool(first_result.get("is_transfer", true)) \
@@ -624,7 +624,7 @@ func _test_continuous_order_target_owner_change_keeps_route() -> bool:
 ## 调用场景：城市换手后的持续任务清理回归测试。
 ## 主要逻辑：给同一源城注册多条路线，模拟失守后调用按源城删除，检查任务数清零且返回删除数量正确。
 func _test_continuous_order_remove_by_source() -> bool:
-	var service = PrototypeOrderDispatchServiceRef.new()
+	var service = OrderDispatchServiceRef.new()
 	service.ensure_continuous_order(0, 1)
 	service.ensure_continuous_order(0, 2)
 	service.ensure_continuous_order(1, 0)
@@ -640,10 +640,10 @@ func _test_continuous_order_remove_by_source() -> bool:
 ## 主要逻辑：构造一座满员且产能为 3.0 的城市，累计 1 秒产能后，模拟“消费 1 次产兵机会 -> 调度 1 次 -> 源城扣 1 人”三次，
 ## 检查能够连续触发 3 次，而不是只触发 1 次后把剩余机会丢掉。
 func _test_continuous_order_full_city_can_dispatch_multiple_ready_production() -> bool:
-	var service = PrototypeOrderDispatchServiceRef.new()
+	var service = OrderDispatchServiceRef.new()
 	var cities: Array = [
-		PrototypeCityStateRef.new(0, "长安", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 35, [1], 3, 3.0),
-		PrototypeCityStateRef.new(1, "洛阳", Vector2.RIGHT, PrototypeCityOwnerRef.PLAYER, 2, 35, 10, [0], 2, 1.0)
+		CityStateRef.new(0, "长安", Vector2.ZERO, CityOwnerRef.PLAYER, 2, 35, 35, [1], 3, 3.0),
+		CityStateRef.new(1, "洛阳", Vector2.RIGHT, CityOwnerRef.PLAYER, 2, 35, 10, [0], 2, 1.0)
 	]
 	service.ensure_continuous_order(0, 1)
 	cities[0].accumulate_production_progress(1.0)
@@ -665,16 +665,16 @@ func _test_continuous_order_full_city_can_dispatch_multiple_ready_production() -
 ## 主要逻辑：请求 3 家电脑开局，检查地图里恰好有 1 个玩家主城和 3 个不同编号的电脑主城，
 ## 且城市都会带上有效的防御和产能属性。
 func _test_map_multi_ai_spawn() -> bool:
-	var generator = PrototypeMapGeneratorRef.new()
+	var generator = MapGeneratorRef.new()
 	var random: RandomNumberGenerator = RandomNumberGenerator.new()
 	random.seed = 7
 	var cities: Array = generator.generate_map(9, random, 3)
 	var player_count: int = 0
 	var ai_owners: Dictionary = {}
 	for city in cities:
-		if city.owner == PrototypeCityOwnerRef.PLAYER:
+		if city.owner == CityOwnerRef.PLAYER:
 			player_count += 1
-		elif PrototypeCityOwnerRef.is_ai(city.owner):
+		elif CityOwnerRef.is_ai(city.owner):
 			ai_owners[city.owner] = true
 		if city.defense < 1 or city.production_rate <= 0.0:
 			return false
@@ -686,7 +686,7 @@ func _test_map_multi_ai_spawn() -> bool:
 ## 调用场景：地图生成回归测试。
 ## 主要逻辑：从第一个城市做广度优先遍历，只要能访问到全部城市，即说明连通主链成立。
 func _test_map_connectivity() -> bool:
-	var generator = PrototypeMapGeneratorRef.new()
+	var generator = MapGeneratorRef.new()
 	var random: RandomNumberGenerator = RandomNumberGenerator.new()
 	random.seed = 42
 	var cities: Array = generator.generate_map(9, random)
@@ -709,8 +709,8 @@ func _test_map_connectivity() -> bool:
 ## 调用场景：预设地图系统第一阶段回归测试。
 ## 主要逻辑：从第一张预设图定义构建一局默认 5 方地图，检查返回数组非空、城市数落在设计范围内，且元素为可用城市状态。
 func _test_preset_map_loader_builds_cities() -> bool:
-	var loader = PrototypePresetMapLoaderRef.new()
-	var definition = PrototypePresetMapDefinitionRef.new()
+	var loader = PresetMapLoaderRef.new()
+	var definition = PresetMapDefinitionRef.new()
 	var random := RandomNumberGenerator.new()
 	random.seed = 42
 	var cities: Array = loader.build_map({
@@ -720,7 +720,7 @@ func _test_preset_map_loader_builds_cities() -> bool:
 		return false
 	if cities.size() < 12 or cities.size() > 18:
 		return false
-	return cities[0] is PrototypeCityStateRef
+	return cities[0] is CityStateRef
 
 
 ## 验证第一张预设图为 2 至 5 方都提供了合法出生配置。
@@ -728,7 +728,7 @@ func _test_preset_map_loader_builds_cities() -> bool:
 ## 调用场景：预设地图定义完整性回归测试。
 ## 主要逻辑：读取定义中的 `spawn_sets_by_faction_count`，确认每种方数都有玩家出生点、正确数量的 AI 出生点，且同一配置无重复城市。
 func _test_preset_map_spawn_sets_cover_supported_faction_counts() -> bool:
-	var definition = PrototypePresetMapDefinitionRef.new()
+	var definition = PresetMapDefinitionRef.new()
 	var spawn_sets: Dictionary = definition.get_spawn_sets_by_faction_count()
 	for faction_count: int in [2, 3, 4, 5]:
 		if not spawn_sets.has(faction_count):
@@ -754,7 +754,7 @@ func _test_preset_map_spawn_sets_cover_supported_faction_counts() -> bool:
 ## 调用场景：预设地图结构回归测试。
 ## 主要逻辑：使用 loader 构建一局默认地图，再通过 BFS 验证任意城市都可达，避免出现孤岛。
 func _test_preset_map_is_connected() -> bool:
-	var loader = PrototypePresetMapLoaderRef.new()
+	var loader = PresetMapLoaderRef.new()
 	var random := RandomNumberGenerator.new()
 	random.seed = 99
 	var cities: Array = loader.build_map({
@@ -780,7 +780,7 @@ func _test_preset_map_is_connected() -> bool:
 ## 调用场景：预设地图结构完整性回归测试。
 ## 主要逻辑：读取运行时城市数组后，检查每条邻接边都指向存在城市，且 A 连到 B 时 B 也必须连回 A。
 func _test_preset_map_neighbors_are_symmetric_and_valid() -> bool:
-	var loader = PrototypePresetMapLoaderRef.new()
+	var loader = PresetMapLoaderRef.new()
 	var random := RandomNumberGenerator.new()
 	random.seed = 7
 	var cities: Array = loader.build_map({
@@ -809,7 +809,7 @@ func _test_preset_map_neighbors_are_symmetric_and_valid() -> bool:
 ## 主要逻辑：在常见运行时世界尺寸下构建地图，检查所有城市都落在世界边界内，
 ## 且任意两城的直线距离都高于最小阈值，避免标签和点击区域大面积重叠。
 func _test_preset_map_positions_stay_in_world_bounds_and_do_not_overlap() -> bool:
-	var loader = PrototypePresetMapLoaderRef.new()
+	var loader = PresetMapLoaderRef.new()
 	var random := RandomNumberGenerator.new()
 	random.seed = 11
 	var world_size := Vector2(1400.0, 2400.0)
@@ -837,7 +837,7 @@ func _test_preset_map_positions_stay_in_world_bounds_and_do_not_overlap() -> boo
 ## 调用场景：预设地图缩放兼容性回归测试。
 ## 主要逻辑：把地图装配到明显小于默认值的世界尺寸，确认 loader 不会因为写死绝对距离阈值而误判模板非法。
 func _test_preset_map_still_builds_on_smaller_world_size() -> bool:
-	var loader = PrototypePresetMapLoaderRef.new()
+	var loader = PresetMapLoaderRef.new()
 	var random := RandomNumberGenerator.new()
 	random.seed = 19
 	var cities: Array = loader.build_map({
@@ -851,7 +851,7 @@ func _test_preset_map_still_builds_on_smaller_world_size() -> bool:
 ## 调用场景：预设地图错误处理回归测试。
 ## 主要逻辑：传入不受支持的总方数，检查构建失败后除了返回空数组，还能读取明确错误信息。
 func _test_preset_map_loader_reports_validation_error() -> bool:
-	var loader = PrototypePresetMapLoaderRef.new()
+	var loader = PresetMapLoaderRef.new()
 	var random := RandomNumberGenerator.new()
 	random.seed = 23
 	var cities: Array = loader.build_map({
@@ -865,7 +865,7 @@ func _test_preset_map_loader_reports_validation_error() -> bool:
 ## 调用场景：Strategic Node Phase 2 结构回归测试。
 ## 主要逻辑：直接读取预设图静态定义，确认至少存在一座关口、枢纽和腹地节点，避免标签设计只写在文档里未真正落地到数据层。
 func _test_preset_map_assigns_strategic_node_types() -> bool:
-	var definition = PrototypePresetMapDefinitionRef.new()
+	var definition = PresetMapDefinitionRef.new()
 	var city_definitions: Array[Dictionary] = definition.get_city_definitions()
 	var node_types: Dictionary = {}
 	for city_definition: Dictionary in city_definitions:
@@ -880,7 +880,7 @@ func _test_preset_map_assigns_strategic_node_types() -> bool:
 ## 调用场景：Strategic Node Phase 2 数值效果回归测试。
 ## 主要逻辑：对比模板定义与 loader 产出的同名城市，确认标记为关口的城市运行时防御值高于模板基础值。
 func _test_strategic_pass_increases_defense() -> bool:
-	var definition = PrototypePresetMapDefinitionRef.new()
+	var definition = PresetMapDefinitionRef.new()
 	var city_definition: Dictionary = _find_city_definition_by_name(definition.get_city_definitions(), "长安")
 	if String(city_definition.get("node_type", "")) != "pass":
 		return false
@@ -893,7 +893,7 @@ func _test_strategic_pass_increases_defense() -> bool:
 ## 调用场景：Strategic Node Phase 2 数值效果回归测试。
 ## 主要逻辑：对比模板定义与 loader 产出的同名城市，确认标记为枢纽的城市运行时产能高于模板基础值。
 func _test_strategic_hub_increases_production() -> bool:
-	var definition = PrototypePresetMapDefinitionRef.new()
+	var definition = PresetMapDefinitionRef.new()
 	var city_definition: Dictionary = _find_city_definition_by_name(definition.get_city_definitions(), "洛阳")
 	if String(city_definition.get("node_type", "")) != "hub":
 		return false
@@ -906,7 +906,7 @@ func _test_strategic_hub_increases_production() -> bool:
 ## 调用场景：Strategic Node Phase 2 数值效果回归测试。
 ## 主要逻辑：对比模板定义与 loader 产出的同名城市，确认标记为腹地的城市运行时初始兵力高于模板基础值。
 func _test_strategic_heartland_increases_initial_soldiers() -> bool:
-	var definition = PrototypePresetMapDefinitionRef.new()
+	var definition = PresetMapDefinitionRef.new()
 	var city_definition: Dictionary = _find_city_definition_by_name(definition.get_city_definitions(), "成都")
 	if String(city_definition.get("node_type", "")) != "heartland":
 		return false
@@ -930,7 +930,7 @@ func _find_city_definition_by_name(city_definitions: Array[Dictionary], city_nam
 ## 调用场景：战略节点测试需要对比静态模板与运行时装配结果时。
 ## 主要逻辑：调用真实 loader 生成城市数组，再按城市名定位目标，避免测试直接依赖私有装配细节。
 func _build_city_by_name(city_name: String) -> Variant:
-	var loader = PrototypePresetMapLoaderRef.new()
+	var loader = PresetMapLoaderRef.new()
 	var random := RandomNumberGenerator.new()
 	random.seed = 31
 	var cities: Array = loader.build_map({
@@ -942,16 +942,16 @@ func _build_city_by_name(city_name: String) -> Variant:
 	return null
 
 
-## 验证项目运行入口仍然指向 prototype 主场景。
+## 验证项目运行入口仍然指向 main 主场景。
 ##
 ## 调用场景：运行链路守护测试。
 ## 主要逻辑：读取 `project.godot` 文本，确认 `run/main_scene` 没有被错误改离当前唯一生效入口。
-func _test_project_main_scene_still_prototype_main() -> bool:
+func _test_project_main_scene_still_main() -> bool:
 	var file := FileAccess.open("res://project.godot", FileAccess.READ)
 	if file == null:
 		return false
 	var contents: String = file.get_as_text()
-	return contents.contains('run/main_scene="res://scenes/main/prototype_main.tscn"')
+	return contents.contains('run/main_scene="res://scenes/main/main.tscn"')
 
 
 ## 验证已确认淘汰的 legacy main chain 文件已全部移除。
@@ -960,19 +960,21 @@ func _test_project_main_scene_still_prototype_main() -> bool:
 ## 主要逻辑：逐个检查已确认废弃的场景和脚本路径，只要还有任意遗留文件存在就返回失败，防止旧主链再次混入仓库。
 func _test_legacy_main_chain_removed() -> bool:
 	var forbidden_paths: Array[String] = [
-		"res://scenes/main/main.tscn",
+		"res://scenes/main/prototype_main.tscn",
+		"res://scripts/presentation/prototype_main_game.gd",
+		"res://scripts/presentation/prototype_main_game_layer_a.gd",
+		"res://scripts/presentation/prototype_main_game_layer_b.gd",
+		"res://scripts/presentation/prototype_main_game_layer_c.gd",
+		"res://scripts/presentation/prototype_main_input_handler.gd",
 		"res://scripts/presentation/main_game.gd",
-		"res://scripts/presentation/city_view.gd",
+		"res://scripts/domain/prototype_city_state.gd",
+		"res://scripts/domain/prototype_city_owner.gd",
+		"res://scripts/domain/prototype_march_order.gd",
 		"res://scripts/presentation/map_view.gd",
 		"res://scripts/presentation/hud.gd",
 		"res://scripts/application/game_state.gd",
-		"res://scripts/application/battle_service.gd",
 		"res://scripts/application/enemy_ai.gd",
-		"res://scripts/application/enemy_ai_service.gd",
-		"res://scripts/application/map_generator.gd",
 		"res://scripts/domain/city.gd",
-		"res://scripts/domain/city_state.gd",
-		"res://scripts/domain/city_owner.gd",
 		"res://scripts/domain/faction.gd",
 		"res://scripts/domain/road.gd",
 		"res://scripts/domain/battle_resolver.gd"

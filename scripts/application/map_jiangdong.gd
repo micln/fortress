@@ -1,4 +1,4 @@
-class_name PrototypeMapJiangdong
+class_name MapJiangdong
 extends RefCounted
 
 ## 江东势力地图

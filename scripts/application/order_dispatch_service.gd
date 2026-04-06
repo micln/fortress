@@ -1,8 +1,8 @@
-class_name PrototypeOrderDispatchService
+class_name OrderDispatchService
 extends RefCounted
 
-const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
-const PrototypeMarchOrderRef = preload("res://scripts/domain/prototype_march_order.gd")
+const CityOwnerRef = preload("res://scripts/domain/city_owner.gd")
+const MarchOrderRef = preload("res://scripts/domain/march_order.gd")
 
 var _orders_by_source: Dictionary = {}
 var _round_robin_indices: Dictionary = {}
@@ -30,7 +30,7 @@ func toggle_continuous_order(source_id: int, target_id: int) -> Dictionary:
 		}
 
 	var orders: Array = _get_or_create_source_orders(source_id)
-	orders.append(PrototypeMarchOrderRef.new(source_id, target_id))
+	orders.append(MarchOrderRef.new(source_id, target_id))
 	_set_source_orders(source_id, orders)
 	return {
 		"action": "registered",
@@ -53,7 +53,7 @@ func ensure_continuous_order(source_id: int, target_id: int) -> Dictionary:
 				"target_id": target_id
 			}
 
-	orders.append(PrototypeMarchOrderRef.new(source_id, target_id))
+	orders.append(MarchOrderRef.new(source_id, target_id))
 	_set_source_orders(source_id, orders)
 	return {
 		"action": "registered",
@@ -125,7 +125,7 @@ func dispatch_for_source(cities: Array, source_id: int) -> Dictionary:
 		return {"success": false, "reason": "no_orders", "source_id": source_id}
 
 	var source = cities[source_id]
-	if PrototypeCityOwnerRef.is_neutral(source.owner):
+	if CityOwnerRef.is_neutral(source.owner):
 		return {"success": false, "reason": "source_neutral", "source_id": source_id}
 	if source.soldiers <= 0:
 		return {"success": false, "reason": "source_no_soldiers", "source_id": source_id}

@@ -1,10 +1,10 @@
-class_name PrototypePresetMapLoader
+class_name PresetMapLoader
 extends RefCounted
 
-const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
-const PrototypeCityStateRef = preload("res://scripts/domain/prototype_city_state.gd")
-const PrototypePresetMapDefinitionRef = preload("res://scripts/application/prototype_preset_map_definition.gd")
-const PrototypeMapRegistryRef = preload("res://scripts/application/prototype_map_registry.gd")
+const CityOwnerRef = preload("res://scripts/domain/city_owner.gd")
+const CityStateRef = preload("res://scripts/domain/city_state.gd")
+const PresetMapDefinitionRef = preload("res://scripts/application/preset_map_definition.gd")
+const MapRegistryRef = preload("res://scripts/application/map_registry.gd")
 const DESIGN_CANVAS_MIN_CITY_DISTANCE: float = 110.0
 const PASS_DEFENSE_BONUS: int = 10
 const HUB_PRODUCTION_BONUS: float = 2.0
@@ -18,21 +18,24 @@ var _current_map_id: String = ""
 ##
 ## 调用场景：主场景开局时替代随机地图生成器，或测试中验证预设地图结构。
 ## 主要逻辑：从注册表获取指定地图的定义，先做模板合法性校验，再把 design canvas 坐标映射到运行时世界尺寸，
-## 最后按当前总方数套用出生配置并生成 `PrototypeCityState` 数组。
+## 最后按当前总方数套用出生配置并生成 `CityState` 数组。
 func build_map(match_config: Dictionary, map_world_size: Vector2, _random: RandomNumberGenerator, map_id: String = "") -> Array:
 	_last_error_message = ""
-	var registry: PrototypeMapRegistry = PrototypeMapRegistryRef.get_instance()
+	var definition: RefCounted = null
 
-	# 如果没有指定 map_id，使用第一张可用地图
+	# 未指定 map_id 时，回退到内置中国预设图，保持测试与旧入口契约稳定。
+	# 指定 map_id 时，才走地图注册表加载关卡地图。
 	if map_id.is_empty():
-		map_id = registry.get_default_map_id()
-	_current_map_id = map_id
-
-	var definition: RefCounted = registry.get_map_definition(map_id)
-	if definition == null:
-		_last_error_message = "未找到地图: %s" % map_id
-		push_error(_last_error_message)
-		return []
+		definition = PresetMapDefinitionRef.new()
+		_current_map_id = String(definition.get_metadata().get("id", "china_central_plains_v1"))
+	else:
+		var registry = MapRegistryRef.get_instance()
+		definition = registry.get_map_definition(map_id)
+		_current_map_id = map_id
+		if definition == null:
+			_last_error_message = "未找到地图: %s" % map_id
+			push_error(_last_error_message)
+			return []
 
 	var metadata: Dictionary = definition.get_metadata()
 	var city_definitions: Array[Dictionary] = definition.get_city_definitions()
@@ -54,19 +57,19 @@ func build_map(match_config: Dictionary, map_world_size: Vector2, _random: Rando
 	for city_definition: Dictionary in city_definitions:
 		var city_id: int = int(city_definition["id"])
 		var level: int = int(city_definition["level"])
-		var node_type: String = String(city_definition.get("node_type", PrototypeCityStateRef.NODE_TYPE_NORMAL))
+		var node_type: String = String(city_definition.get("node_type", CityStateRef.NODE_TYPE_NORMAL))
 		var adjusted_stats: Dictionary = _apply_node_type_effects(city_definition, node_type)
 		var neighbors: Array[int] = []
 		for neighbor_id: int in adjacency.get(city_id, []):
 			neighbors.append(neighbor_id)
 		cities.append(
-			PrototypeCityStateRef.new(
+			CityStateRef.new(
 				city_id,
 				String(city_definition["name"]),
 				_map_design_position_to_world(Vector2(city_definition["position"]), Vector2(metadata["design_canvas_size"]), map_world_size),
-				int(spawn_owners.get(city_id, PrototypeCityOwnerRef.NEUTRAL)),
+				int(spawn_owners.get(city_id, CityOwnerRef.NEUTRAL)),
 				level,
-				int(PrototypeCityStateRef.LEVEL_CAPACITY[level]),
+				int(CityStateRef.LEVEL_CAPACITY[level]),
 				int(adjusted_stats["initial_soldiers"]),
 				neighbors,
 				int(adjusted_stats["defense"]),
@@ -113,7 +116,7 @@ func _validate_definition(
 		var city_id: int = int(city_definition.get("id", -1))
 		if city_id < 0 or city_ids.has(city_id):
 			return _fail_validation("预设地图城市 ID 非法或重复：%d" % city_id)
-		if not _is_valid_node_type(String(city_definition.get("node_type", PrototypeCityStateRef.NODE_TYPE_NORMAL))):
+		if not _is_valid_node_type(String(city_definition.get("node_type", CityStateRef.NODE_TYPE_NORMAL))):
 			return _fail_validation("预设地图城市节点类型非法：%d" % city_id)
 		city_ids[city_id] = true
 
@@ -212,10 +215,10 @@ func _get_runtime_min_city_distance(design_canvas_size: Vector2, map_world_size:
 ## 主要逻辑：把未显式填写的类型按 normal 处理，其余值必须落在当前支持的四种节点类型中。
 func _is_valid_node_type(node_type: String) -> bool:
 	return node_type in [
-		PrototypeCityStateRef.NODE_TYPE_NORMAL,
-		PrototypeCityStateRef.NODE_TYPE_PASS,
-		PrototypeCityStateRef.NODE_TYPE_HUB,
-		PrototypeCityStateRef.NODE_TYPE_HEARTLAND
+		CityStateRef.NODE_TYPE_NORMAL,
+		CityStateRef.NODE_TYPE_PASS,
+		CityStateRef.NODE_TYPE_HUB,
+		CityStateRef.NODE_TYPE_HEARTLAND
 	]
 
 
@@ -230,11 +233,11 @@ func _apply_node_type_effects(city_definition: Dictionary, node_type: String) ->
 		"initial_soldiers": int(city_definition.get("initial_soldiers", 0))
 	}
 	match node_type:
-		PrototypeCityStateRef.NODE_TYPE_PASS:
+		CityStateRef.NODE_TYPE_PASS:
 			adjusted_stats["defense"] = int(adjusted_stats["defense"]) + PASS_DEFENSE_BONUS
-		PrototypeCityStateRef.NODE_TYPE_HUB:
+		CityStateRef.NODE_TYPE_HUB:
 			adjusted_stats["production_rate"] = float(adjusted_stats["production_rate"]) + HUB_PRODUCTION_BONUS
-		PrototypeCityStateRef.NODE_TYPE_HEARTLAND:
+		CityStateRef.NODE_TYPE_HEARTLAND:
 			adjusted_stats["initial_soldiers"] = int(adjusted_stats["initial_soldiers"]) + HEARTLAND_SOLDIER_BONUS
 	return adjusted_stats
 
@@ -261,11 +264,11 @@ func _build_adjacency(city_definitions: Array[Dictionary], roads: Array[Vector2i
 ## 主要逻辑：玩家固定使用 `PLAYER`，AI 依次从 `AI_OWNER_START` 编号，未出现在出生配置中的城市保持中立。
 func _build_spawn_owners(spawn_set: Dictionary) -> Dictionary:
 	var owners: Dictionary = {
-		int(spawn_set["player_city_id"]): PrototypeCityOwnerRef.PLAYER
+		int(spawn_set["player_city_id"]): CityOwnerRef.PLAYER
 	}
 	var ai_city_ids: Array = spawn_set.get("ai_city_ids", [])
 	for index: int in range(ai_city_ids.size()):
-		owners[int(ai_city_ids[index])] = PrototypeCityOwnerRef.AI_OWNER_START + index
+		owners[int(ai_city_ids[index])] = CityOwnerRef.AI_OWNER_START + index
 	return owners
 
 

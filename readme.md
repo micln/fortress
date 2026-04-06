@@ -45,19 +45,19 @@
 
 ## 代码入口与结构
 
-- 主场景：`scenes/main/prototype_main.tscn`
-- 主控制器入口壳：`scripts/presentation/prototype_main_game.gd`
+- 主场景：`scenes/main/main.tscn`
+- 主控制器入口壳：`scenes/main/main.gd`
   - 该文件仅负责 `extends` 到分层脚本，保持场景引用路径稳定
 - 主控制器分层（presentation 内部分层）：
-  - `prototype_main_game_layer_a.gd`：装配/初始化（_ready 接线）
-  - `prototype_main_game_layer_b.gd`：主流程与 UI 编排
-  - `prototype_main_game_layer_c.gd`：共享基础与工具
-  - `prototype_main_input_handler.gd`：输入/手势状态机与“空白释放取消选城”语义
+  - `scenes/main/main_bootstrap.gd`：装配/初始化（_ready 接线）
+  - `scenes/main/main_flow.gd`：主流程与 UI 编排
+  - `scenes/main/main_context.gd`：共享基础与工具
+  - `main_input_handler.gd`：输入/手势状态机与“空白释放取消选城”语义
 
 ## 运行方式
 
 1. 使用 Godot 4.6 打开项目根目录
-2. 运行主场景 `scenes/main/prototype_main.tscn`
+2. 运行主场景 `scenes/main/main.tscn`
 3. 阅读开局说明后点击“开始游戏”
 4. 点击蓝色己方城市，再点击目标城市，直接创建或关闭持续出兵路线
 5. 点击敌方或中立城市时，只有相邻且有道路连接才可进攻

@@ -1,4 +1,4 @@
-class_name PrototypeCityView
+class_name CityView
 extends Area2D
 
 signal city_pressed(city_id: int)
@@ -22,11 +22,11 @@ const CITY_ICON_SCALE: float = 1.4
 const CITY_PLAQUE_RECT: Rect2 = Rect2(Vector2(-22.0, 8.0), Vector2(44.0, 14.0))
 const CITY_PLAQUE_TEXT_Y_OFFSET: float = 18.0
 const CITY_PLAQUE_FONT_BASE_SIZE: int = 8
-const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
+const CityOwnerRef = preload("res://scripts/domain/city_owner.gd")
 const UI_FONT: Font = preload("res://assets/fonts/NotoSansSC-Regular.otf")
 
 var city_id: int = -1
-var city_owner: int = PrototypeCityOwnerRef.NEUTRAL
+var city_owner: int = CityOwnerRef.NEUTRAL
 var city_level: int = 1
 var city_node_type: String = "normal"
 var _city_name_text: String = ""
@@ -175,7 +175,7 @@ func _read_marker_bool_setting(value, default_value: bool = false) -> bool:
 ## 主要逻辑：先绘制层叠圆形底座与底部台座，再按节点类型追加腹地徽记或其他选中高亮，
 ## 让城市在不依赖额外美术资源的情况下仍能保持稳定识别度。
 func _draw() -> void:
-	var base_color: Color = PrototypeCityOwnerRef.get_color(city_owner)
+	var base_color: Color = CityOwnerRef.get_color(city_owner)
 	# 城市图标与命中区域同步放大，避免视觉与判定不一致。
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE * CITY_ICON_SCALE)
 	_draw_city_base(base_color)

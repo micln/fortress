@@ -1,4 +1,4 @@
-class_name PrototypeTransferArrivalService
+class_name TransferArrivalService
 extends RefCounted
 
 

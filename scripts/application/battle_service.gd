@@ -1,7 +1,7 @@
-class_name PrototypeBattleService
+class_name BattleService
 extends RefCounted
 
-const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
+const CityOwnerRef = preload("res://scripts/domain/city_owner.gd")
 const UPGRADE_LEVEL: String = "level"
 const UPGRADE_DEFENSE: String = "defense"
 const UPGRADE_PRODUCTION: String = "production"
@@ -200,7 +200,7 @@ func resolve_simultaneous_attack_arrivals(target, arrivals_by_owner: Dictionary)
 			"message": "%s 接收了 %d 名友军增援。" % [target.name, defender_reinforcement]
 		}
 
-	var winner_owner: int = PrototypeCityOwnerRef.NEUTRAL
+	var winner_owner: int = CityOwnerRef.NEUTRAL
 	var winner_count: int = 0
 	var total_attackers: int = 0
 	for owner in attacking_totals.keys():
@@ -215,7 +215,7 @@ func resolve_simultaneous_attack_arrivals(target, arrivals_by_owner: Dictionary)
 		var others_total: int = total_attackers - winner_count
 		if winner_count <= others_total:
 			attackers_cancelled = true
-			winner_owner = PrototypeCityOwnerRef.NEUTRAL
+			winner_owner = CityOwnerRef.NEUTRAL
 			winner_count = 0
 		else:
 			winner_count -= others_total
@@ -227,7 +227,7 @@ func resolve_simultaneous_attack_arrivals(target, arrivals_by_owner: Dictionary)
 			"reinforced": defender_reinforcement > 0,
 			"contested": true,
 			"attackers_cancelled": true,
-			"winner_owner": PrototypeCityOwnerRef.NEUTRAL,
+			"winner_owner": CityOwnerRef.NEUTRAL,
 			"winner_count": 0,
 			"defender_reinforcement": defender_reinforcement,
 			"message": "%s 附近多方部队同帧混战后同归于尽，守军稳住了城池。" % target.name
@@ -260,7 +260,7 @@ func resolve_marching_encounter(left_owner: int, left_count: int, right_owner: i
 		return {
 			"same_owner": false,
 			"both_destroyed": true,
-			"winner_owner": PrototypeCityOwnerRef.NEUTRAL,
+			"winner_owner": CityOwnerRef.NEUTRAL,
 			"remaining_count": 0
 		}
 
@@ -390,10 +390,10 @@ func get_winner(cities: Array) -> int:
 	var remaining_owners: Dictionary = {}
 
 	for city in cities:
-		if PrototypeCityOwnerRef.is_neutral(city.owner):
+		if CityOwnerRef.is_neutral(city.owner):
 			continue
 		remaining_owners[city.owner] = true
 
 	if remaining_owners.size() == 1:
 		return int(remaining_owners.keys()[0])
-	return PrototypeCityOwnerRef.NEUTRAL
+	return CityOwnerRef.NEUTRAL

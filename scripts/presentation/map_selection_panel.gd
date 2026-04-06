@@ -1,4 +1,4 @@
-class_name PrototypeMapSelectionPanel
+class_name MapSelectionPanel
 extends Control
 
 ## 地图选择面板
@@ -9,7 +9,7 @@ extends Control
 signal map_selected(map_id: String)
 signal selection_cancelled
 
-const PrototypeMapRegistryRef = preload("res://scripts/application/prototype_map_registry.gd")
+const MapRegistryRef = preload("res://scripts/application/map_registry.gd")
 const UI_FONT: Font = preload("res://assets/fonts/NotoSansSC-Regular.otf")
 
 var _selected_map_id: String = ""
@@ -51,7 +51,7 @@ func _refresh_map_list() -> void:
 	for child: Node in map_list.get_children():
 		child.queue_free()
 
-	var registry: PrototypeMapRegistry = PrototypeMapRegistryRef.get_instance()
+	var registry = MapRegistryRef.get_instance()
 	var summaries: Array[Dictionary] = registry.get_all_map_summaries()
 
 	for summary: Dictionary in summaries:
@@ -81,7 +81,7 @@ func _refresh_map_list() -> void:
 
 
 func _select_default_map() -> void:
-	var registry: PrototypeMapRegistry = PrototypeMapRegistryRef.get_instance()
+	var registry = MapRegistryRef.get_instance()
 	var default_id: String = registry.get_default_map_id()
 	_select_map(default_id)
 
@@ -92,7 +92,7 @@ func _select_map(map_id: String) -> void:
 
 
 func _update_selection_display() -> void:
-	var registry: PrototypeMapRegistry = PrototypeMapRegistryRef.get_instance()
+	var registry = MapRegistryRef.get_instance()
 	var summaries: Array[Dictionary] = registry.get_all_map_summaries()
 
 	# 遍历所有按钮，高亮选中项

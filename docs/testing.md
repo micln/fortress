@@ -7,14 +7,14 @@
 
 ## 范围
 
-- `prototype_battle_service.gd`：兵力结算、防御参与攻城、产能驱动产兵
-- `prototype_city_state.gd`：容量上限、产能累计、防御门槛、升级成本
-- `prototype_enemy_ai_service.gd`：基于城市属性的持续路线选择、无战可打时的养城升级
-- `prototype_order_dispatch_service.gd`：持续路线注册/切换、轮转调度、来源失守清理、目标换手后的动态模式切换
-- `prototype_map_generator.gd`：地图连通性、开局势力分配、城市属性生成
-- `prototype_preset_map_loader.gd`：预设地图模板装载、出生配置覆盖、邻接完整性、坐标越界/重叠校验、错误显式暴露、战略节点类型装配与数值加成
-- `prototype_city_state.gd`：除基础城市状态外，还需覆盖战略节点类型字段与展示名辅助函数
-- `prototype_main_game.gd`（入口壳）与 `prototype_main_game_layer_*.gd`：通过项目启动验证确保场景装配、输入/手势、升级按钮、持续出兵（产兵触发自动下发）、右侧任务 HUD 与战略节点最小提示无语法错误
+- `battle_service.gd`：兵力结算、防御参与攻城、产能驱动产兵
+- `city_state.gd`：容量上限、产能累计、防御门槛、升级成本
+- `enemy_ai_service.gd`：基于城市属性的持续路线选择、无战可打时的养城升级
+- `order_dispatch_service.gd`：持续路线注册/切换、轮转调度、来源失守清理、目标换手后的动态模式切换
+- `map_generator.gd`：地图连通性、开局势力分配、城市属性生成
+- `preset_map_loader.gd`：预设地图模板装载、出生配置覆盖、邻接完整性、坐标越界/重叠校验、错误显式暴露、战略节点类型装配与数值加成
+- `city_state.gd`：除基础城市状态外，还需覆盖战略节点类型字段与展示名辅助函数
+- `scenes/main/main.gd`（入口壳）与 `scenes/main/main_*.gd`：通过项目启动验证确保场景装配、输入/手势、升级按钮、持续出兵（产兵触发自动下发）、右侧任务 HUD 与战略节点最小提示无语法错误
 
 ## 执行
 

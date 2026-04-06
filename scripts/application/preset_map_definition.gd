@@ -1,4 +1,4 @@
-class_name PrototypePresetMapDefinition
+class_name PresetMapDefinition
 extends RefCounted
 
 const DESIGN_CANVAS_SIZE: Vector2 = Vector2(1200.0, 2200.0)

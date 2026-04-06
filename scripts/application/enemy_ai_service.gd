@@ -1,7 +1,7 @@
-class_name PrototypeEnemyAiService
+class_name EnemyAiService
 extends RefCounted
 
-const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
+const CityOwnerRef = preload("res://scripts/domain/city_owner.gd")
 const MARCH_SPEED: float = 180.0
 const DIFFICULTY_EASY: String = "easy"
 const DIFFICULTY_NORMAL: String = "normal"
@@ -170,7 +170,7 @@ func _get_minimum_advantage() -> int:
 ## 主要逻辑：对中立空城或低兵力中立城适当放宽门槛，避免 AI 因为通用保守阈值而放弃明显划算的扩张机会。
 func _get_required_advantage(target) -> int:
 	var minimum_advantage: int = _get_minimum_advantage()
-	if PrototypeCityOwnerRef.is_neutral(target.owner):
+	if CityOwnerRef.is_neutral(target.owner):
 		return max(0, minimum_advantage - 20)
 	return minimum_advantage
 
@@ -216,7 +216,7 @@ func _score_target(source, target, troop_count: int, recommended_count: int, tra
 	score += target.production_rate * 0.7
 	score -= travel_duration * (0.3 if _style == STYLE_AGGRESSIVE else 0.8)
 
-	if target.owner == PrototypeCityOwnerRef.PLAYER:
+	if target.owner == CityOwnerRef.PLAYER:
 		score += 2.2 if _style == STYLE_AGGRESSIVE else 0.5
 	else:
 		score += 0.5 if _style == STYLE_AGGRESSIVE else 1.2

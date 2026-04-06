@@ -1,6 +1,6 @@
 [gd_scene load_steps=5 format=3]
 
-[ext_resource type="Script" path="res://scripts/presentation/prototype_map_selection_panel.gd" id="1_map_select"]
+[ext_resource type="Script" path="res://scripts/presentation/map_selection_panel.gd" id="1_map_select"]
 [ext_resource type="FontFile" path="res://assets/fonts/NotoSansSC-Regular.otf" id="2_font"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_map_panel"]

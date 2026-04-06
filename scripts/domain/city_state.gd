@@ -1,7 +1,7 @@
-class_name PrototypeCityState
+class_name CityState
 extends RefCounted
 
-const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
+const CityOwnerRef = preload("res://scripts/domain/city_owner.gd")
 const NODE_TYPE_NORMAL: String = "normal"
 const NODE_TYPE_PASS: String = "pass"
 const NODE_TYPE_HUB: String = "hub"
@@ -97,7 +97,7 @@ func get_node_type_display_name() -> String:
 ## 调用场景：产兵循环、AI 选点、胜负判断。
 ## 主要逻辑：非中立阵营即视为被占领状态。
 func is_occupied() -> bool:
-	return owner != PrototypeCityOwnerRef.NEUTRAL
+	return owner != CityOwnerRef.NEUTRAL
 
 
 ## 判断当前城市是否与指定城市相连。

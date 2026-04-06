@@ -1,8 +1,8 @@
-class_name PrototypeMapGenerator
+class_name MapGenerator
 extends RefCounted
 
-const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
-const PrototypeCityStateRef = preload("res://scripts/domain/prototype_city_state.gd")
+const CityOwnerRef = preload("res://scripts/domain/city_owner.gd")
+const CityStateRef = preload("res://scripts/domain/city_state.gd")
 
 const DEFAULT_MAP_SIZE: Vector2 = Vector2(1200.0, 2200.0)
 const MAP_PADDING_RATIO: Vector2 = Vector2(0.125, 0.14)
@@ -38,21 +38,21 @@ func generate_map(city_count: int, random: RandomNumberGenerator, ai_count: int 
 	var cities: Array = []
 
 	for index: int in range(city_count):
-		var owner: int = int(start_owners.get(index, PrototypeCityOwnerRef.NEUTRAL))
+		var owner: int = int(start_owners.get(index, CityOwnerRef.NEUTRAL))
 		var level: int = random.randi_range(1, 3)
-		var max_soldiers: int = int(PrototypeCityStateRef.LEVEL_CAPACITY[level])
+		var max_soldiers: int = int(CityStateRef.LEVEL_CAPACITY[level])
 		var defense: int = _roll_defense_for_level(level, random)
 		var production_rate: float = _roll_production_for_level(level, random)
 		var soldiers: int = random.randi_range(30, min(70, max_soldiers))
-		if owner == PrototypeCityOwnerRef.PLAYER:
+		if owner == CityOwnerRef.PLAYER:
 			level = 2
-			max_soldiers = int(PrototypeCityStateRef.LEVEL_CAPACITY[level])
+			max_soldiers = int(CityStateRef.LEVEL_CAPACITY[level])
 			defense = 20
 			production_rate = 11.0
 			soldiers = 140
-		elif PrototypeCityOwnerRef.is_ai(owner):
+		elif CityOwnerRef.is_ai(owner):
 			level = 2
-			max_soldiers = int(PrototypeCityStateRef.LEVEL_CAPACITY[level])
+			max_soldiers = int(CityStateRef.LEVEL_CAPACITY[level])
 			defense = 20
 			production_rate = 11.0
 			soldiers = max(80, 110 - ai_count * 10)
@@ -62,7 +62,7 @@ func generate_map(city_count: int, random: RandomNumberGenerator, ai_count: int 
 			neighbors.append(neighbor_id)
 
 		cities.append(
-			PrototypeCityStateRef.new(
+			CityStateRef.new(
 				index,
 				city_names[index],
 				positions[index],
@@ -118,9 +118,9 @@ func _pick_start_owners(positions: Array[Vector2], ai_count: int) -> Dictionary:
 			city_id = sorted_ids[candidate_index]
 
 		if slot == 0:
-			start_owners[city_id] = PrototypeCityOwnerRef.PLAYER
+			start_owners[city_id] = CityOwnerRef.PLAYER
 		else:
-			start_owners[city_id] = PrototypeCityOwnerRef.AI_OWNER_START + slot - 1
+			start_owners[city_id] = CityOwnerRef.AI_OWNER_START + slot - 1
 	return start_owners
 
 

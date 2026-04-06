@@ -1,4 +1,4 @@
-extends "res://scripts/presentation/prototype_main_game_layer_c.gd"
+extends "res://scenes/main/main_context.gd"
 
 func _is_desktop_runtime() -> bool:
 	if OS.has_feature("web"):
@@ -33,7 +33,7 @@ func _start_new_match(map_id: String = "") -> void:
 		_current_map_id = map_id
 	_manual_paused = false
 	_overlay_mode = "start"
-	_last_winner = PrototypeCityOwnerRef.NEUTRAL
+	_last_winner = CityOwnerRef.NEUTRAL
 	_selected_city_id = -1
 	_order_dispatch_service.clear()
 	_telemetry.reset_continuous_dispatch_window()
@@ -95,7 +95,7 @@ func _clear_city_views() -> void:
 ## 主要逻辑：复制隐藏模板节点，设置城市编号和名称，并把点击信号回接到主控制器。
 func _spawn_city_views() -> void:
 	for city in _cities:
-		var city_view: PrototypeCityView = CITY_SCENE.instantiate()
+		var city_view: CityView = CITY_SCENE.instantiate()
 		city_view.visible = true
 		city_view.name = "City_%d" % city.city_id
 		cities_root.add_child(city_view)
@@ -127,7 +127,7 @@ func _on_city_pressed(city_id: int) -> void:
 	})
 
 	if _selected_city_id == -1:
-		if clicked_city.owner != PrototypeCityOwnerRef.PLAYER:
+		if clicked_city.owner != CityOwnerRef.PLAYER:
 			hud.update_status("先点蓝色己方城市。")
 			_audio_manager.play_sfx_by_id("error")
 			return
@@ -301,7 +301,7 @@ func _execute_attack(source_id: int, target_id: int, troop_count: int, is_player
 	_launch_marching_unit(source_id, target_id, int(result["owner"]), int(result["count"]), "attack", is_player_action)
 	if update_status_text:
 		if not is_player_action:
-			hud.update_status("%s 行动：%s" % [PrototypeCityOwnerRef.get_owner_name(source.owner), String(result.get("message", ""))])
+			hud.update_status("%s 行动：%s" % [CityOwnerRef.get_owner_name(source.owner), String(result.get("message", ""))])
 			hud.update_hint("有电脑势力已经出兵，注意观察道路上的行军单位。")
 		else:
 			hud.update_hint("部队已经出发。你可以继续选择其他城市。")
@@ -329,7 +329,7 @@ func _run_enemy_turn() -> void:
 		var ensure_result: Dictionary = _order_dispatch_service.ensure_continuous_order(source_id, target_id)
 		_log_game_debug("ai_order_ensured", {
 			"owner_id": owner_id,
-			"owner_name": PrototypeCityOwnerRef.get_owner_name(owner_id),
+			"owner_name": CityOwnerRef.get_owner_name(owner_id),
 			"source_id": source_id,
 			"source_name": _cities[source_id].name,
 			"target_id": target_id,
@@ -337,7 +337,7 @@ func _run_enemy_turn() -> void:
 			"action": ensure_result.get("action", "")
 		})
 		hud.update_status("%s 已部署持续路线：%s -> %s。" % [
-			PrototypeCityOwnerRef.get_owner_name(owner_id),
+			CityOwnerRef.get_owner_name(owner_id),
 			_cities[source_id].name,
 			_cities[target_id].name
 		])
@@ -368,18 +368,18 @@ func _refresh_view() -> void:
 ## 主要逻辑：读取服务层的胜负判断，若有赢家则锁定战局并显示结束面板。
 func _check_game_over() -> void:
 	var winner: int = _battle_service.get_winner(_cities)
-	if winner == PrototypeCityOwnerRef.NEUTRAL:
+	if winner == CityOwnerRef.NEUTRAL:
 		return
 
 	_game_over = true
 	_last_winner = winner
 	_log_game_debug("game_over", {
 		"winner": winner,
-		"winner_name": PrototypeCityOwnerRef.get_owner_name(winner)
+		"winner_name": CityOwnerRef.get_owner_name(winner)
 	})
-	hud.update_status("%s 获胜。" % PrototypeCityOwnerRef.get_owner_name(winner))
+	hud.update_status("%s 获胜。" % CityOwnerRef.get_owner_name(winner))
 	hud.update_hint("点击下方“重新开始”，或在面板里直接再开一局。")
-	if winner == PrototypeCityOwnerRef.PLAYER:
+	if winner == CityOwnerRef.PLAYER:
 		_audio_manager.play_sfx_by_id("victory")
 	else:
 		_audio_manager.play_sfx_by_id("defeat")
@@ -393,7 +393,7 @@ func _check_game_over() -> void:
 func _handle_city_owner_changed(city_id: int, previous_owner: int, new_owner: int) -> void:
 	var city = _cities[city_id]
 	var removed_count: int = _order_dispatch_service.remove_orders_by_source(city_id)
-	if _selected_city_id == city_id and city.owner != PrototypeCityOwnerRef.PLAYER:
+	if _selected_city_id == city_id and city.owner != CityOwnerRef.PLAYER:
 		_selected_city_id = -1
 	_log_game_debug("city_owner_changed", {
 		"city_id": city_id,
@@ -441,7 +441,7 @@ func _refresh_upgrade_buttons() -> void:
 		return
 
 	var city = _cities[_selected_city_id]
-	if city.owner != PrototypeCityOwnerRef.PLAYER:
+	if city.owner != CityOwnerRef.PLAYER:
 		floating_upgrade_panel.visible = false
 		upgrade_level_button.disabled = true
 		upgrade_defense_button.disabled = true
@@ -449,9 +449,9 @@ func _refresh_upgrade_buttons() -> void:
 		return
 
 	var options: Dictionary = _battle_service.get_city_upgrade_options(city)
-	_apply_upgrade_button_state(upgrade_level_button, city, options[PrototypeBattleServiceRef.UPGRADE_LEVEL], "升级")
-	_apply_upgrade_button_state(upgrade_defense_button, city, options[PrototypeBattleServiceRef.UPGRADE_DEFENSE], "升防")
-	_apply_upgrade_button_state(upgrade_production_button, city, options[PrototypeBattleServiceRef.UPGRADE_PRODUCTION], "升产")
+	_apply_upgrade_button_state(upgrade_level_button, city, options[BattleServiceRef.UPGRADE_LEVEL], "升级")
+	_apply_upgrade_button_state(upgrade_defense_button, city, options[BattleServiceRef.UPGRADE_DEFENSE], "升防")
+	_apply_upgrade_button_state(upgrade_production_button, city, options[BattleServiceRef.UPGRADE_PRODUCTION], "升产")
 	_position_floating_upgrade_panel(_camera_controller.world_to_screen(city.position))
 	floating_upgrade_panel.visible = true
 
@@ -506,7 +506,7 @@ func _execute_upgrade(city_id: int, upgrade_type: String, is_player_action: bool
 		if is_player_action:
 			hud.update_hint("升级已完成。你可以继续升城，或点目标城市发起行动。")
 		else:
-			hud.update_hint("%s 正在经营后方城市，准备下一轮行动。" % PrototypeCityOwnerRef.get_owner_name(city.owner))
+			hud.update_hint("%s 正在经营后方城市，准备下一轮行动。" % CityOwnerRef.get_owner_name(city.owner))
 		_audio_manager.play_sfx_by_id("capture")
 	else:
 		if is_player_action:
@@ -750,8 +750,8 @@ func _resolve_single_marching_collision(left_index: int, right_index: int) -> vo
 		int(right_unit["owner"]),
 		int(right_unit["count"])
 	)
-	var left_owner_name: String = PrototypeCityOwnerRef.get_owner_name(int(left_unit["owner"]))
-	var right_owner_name: String = PrototypeCityOwnerRef.get_owner_name(int(right_unit["owner"]))
+	var left_owner_name: String = CityOwnerRef.get_owner_name(int(left_unit["owner"]))
+	var right_owner_name: String = CityOwnerRef.get_owner_name(int(right_unit["owner"]))
 
 	if result.get("both_destroyed", false):
 		_log_game_debug("march_collision", {
@@ -786,7 +786,7 @@ func _resolve_single_marching_collision(left_index: int, right_index: int) -> vo
 	hud.update_status("%s 与 %s 在路上交战，%s 剩 %d 人继续前进。" % [
 		left_owner_name,
 		right_owner_name,
-		PrototypeCityOwnerRef.get_owner_name(winner_owner),
+		CityOwnerRef.get_owner_name(winner_owner),
 		remaining_count
 	])
 	hud.update_hint("道路上的敌对部队会先互相抵消，剩余兵力才会继续前进。")
@@ -862,7 +862,7 @@ func _resolve_marching_unit_arrival(unit: Dictionary) -> void:
 		if bool(unit["is_player_action"]):
 			hud.update_status(String(result.get("message", "")))
 		else:
-			hud.update_status("%s 到达：%s" % [PrototypeCityOwnerRef.get_owner_name(int(unit["owner"])), String(result.get("message", ""))])
+			hud.update_status("%s 到达：%s" % [CityOwnerRef.get_owner_name(int(unit["owner"])), String(result.get("message", ""))])
 
 		if result.get("captured", false):
 			_audio_manager.play_sfx_by_id("capture")
@@ -884,7 +884,7 @@ func _resolve_marching_unit_arrival(unit: Dictionary) -> void:
 
 ## 把“到达 1 名友军援兵”转换成一次指定源城的持续调度尝试。
 ##
-## 调用场景：友军运兵逐兵到达结算时，交给 `PrototypeTransferArrivalService` 回调触发。
+## 调用场景：友军运兵逐兵到达结算时，交给 `TransferArrivalService` 回调触发。
 ## 主要逻辑：复用现有持续出兵调度链，但把触发来源显式绑定到当前接收援军的城市，避免闭包捕获带来不稳定行为。
 func _dispatch_continuous_order_for_arrival_source(source_id: int) -> bool:
 	return _dispatch_continuous_orders_for_source(source_id)
@@ -918,7 +918,7 @@ func _draw_continuous_order_arrows() -> void:
 		var arrow_spacing: float = 80.0 * _camera_controller.map_zoom
 		var arrow_count: int = max(1, int(distance / arrow_spacing))
 
-		var owner_color: Color = PrototypeCityOwnerRef.get_color(source.owner)
+		var owner_color: Color = CityOwnerRef.get_color(source.owner)
 		var arrow_size: float = max(6.0, 10.0 * _camera_controller.map_zoom)
 
 		for i in range(arrow_count):
@@ -961,7 +961,7 @@ func _get_marching_unit_position(unit: Dictionary) -> Vector2:
 ## 主要逻辑：遍历城市数组并返回第一座归属于玩家的城市；若玩家已灭亡或地图未初始化，则返回空。
 func _get_first_player_city():
 	for city in _cities:
-		if city.owner == PrototypeCityOwnerRef.PLAYER:
+		if city.owner == CityOwnerRef.PLAYER:
 			return city
 	return null
 
@@ -1033,7 +1033,7 @@ func _on_overlay_action_button_pressed() -> void:
 func _on_upgrade_level_button_pressed() -> void:
 	if _selected_city_id == -1:
 		return
-	_execute_upgrade(_selected_city_id, PrototypeBattleServiceRef.UPGRADE_LEVEL, true)
+	_execute_upgrade(_selected_city_id, BattleServiceRef.UPGRADE_LEVEL, true)
 
 
 ## 处理底部防御升级按钮。
@@ -1043,7 +1043,7 @@ func _on_upgrade_level_button_pressed() -> void:
 func _on_upgrade_defense_button_pressed() -> void:
 	if _selected_city_id == -1:
 		return
-	_execute_upgrade(_selected_city_id, PrototypeBattleServiceRef.UPGRADE_DEFENSE, true)
+	_execute_upgrade(_selected_city_id, BattleServiceRef.UPGRADE_DEFENSE, true)
 
 
 ## 处理底部产能升级按钮。
@@ -1053,7 +1053,7 @@ func _on_upgrade_defense_button_pressed() -> void:
 func _on_upgrade_production_button_pressed() -> void:
 	if _selected_city_id == -1:
 		return
-	_execute_upgrade(_selected_city_id, PrototypeBattleServiceRef.UPGRADE_PRODUCTION, true)
+	_execute_upgrade(_selected_city_id, BattleServiceRef.UPGRADE_PRODUCTION, true)
 
 
 ## 处理底部重新开始按钮。
@@ -1221,7 +1221,7 @@ func _try_execute_continuous_order(dispatch_result: Dictionary) -> bool:
 	if is_transfer:
 		_execute_transfer(source_id, target_id, troop_count, true, false)
 	else:
-		_execute_attack(source_id, target_id, troop_count, source.owner == PrototypeCityOwnerRef.PLAYER, true, false)
+		_execute_attack(source_id, target_id, troop_count, source.owner == CityOwnerRef.PLAYER, true, false)
 	return true
 
 

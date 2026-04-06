@@ -86,11 +86,11 @@
 - 不要为了"更强静态类型"破坏当前装配稳定性
 
 ### Naming
-- 类名：`PascalCase`（如 `PrototypeBattleService`）
+- 类名：`PascalCase`（如 `BattleService`）
 - 文件名：`snake_case.gd`
 - 函数/变量：`snake_case`
 - 常量：`UPPER_SNAKE_CASE`
-- 活跃实现统一采用 `Prototype*` / `prototype_*` 命名体系
+- 新增主链代码默认不加 `prototype_` 前缀；历史模块按现状逐步迁移
 
 ---
 
@@ -99,18 +99,18 @@
 当前唯一运行链：
 
 - `project.godot`
-- `scenes/main/prototype_main.tscn`
-- `scripts/presentation/prototype_main_game.gd`（入口壳，继续保持场景引用不变）
-- `scripts/presentation/prototype_main_game_layer_a.gd`（装配/初始化）
-- `scripts/presentation/prototype_main_game_layer_b.gd`（主流程与 UI 编排）
-- `scripts/presentation/prototype_main_game_layer_c.gd`（共享基础与工具）
-- `scripts/presentation/prototype_main_input_handler.gd`（输入/手势与取消选城语义）
-- `scripts/presentation/prototype_city_view.gd`
-- `scripts/application/prototype_map_generator.gd`
-- `scripts/application/prototype_battle_service.gd`
-- `scripts/application/prototype_enemy_ai_service.gd`
-- `scripts/domain/prototype_city_owner.gd`
-- `scripts/domain/prototype_city_state.gd`
+- `scenes/main/main.tscn`
+- `scenes/main/main.gd`（入口壳，继续保持场景引用不变）
+- `scenes/main/main_bootstrap.gd`（装配/初始化）
+- `scenes/main/main_flow.gd`（主流程与 UI 编排）
+- `scenes/main/main_context.gd`（共享基础与工具）
+- `scripts/presentation/main_input_handler.gd`（输入/手势与取消选城语义）
+- `scripts/presentation/city_view.gd`
+- `scripts/application/map_generator.gd`
+- `scripts/application/battle_service.gd`
+- `scripts/application/enemy_ai_service.gd`
+- `scripts/domain/city_owner.gd`
+- `scripts/domain/city_state.gd`
 
 默认只改以上链路中的对应文件，其他文件不在默认改动范围内。
 
@@ -120,7 +120,7 @@
 
 ### 9.1 本地运行
 
-使用 Godot `4.6.x` 打开仓库根目录，运行主场景 `scenes/main/prototype_main.tscn`。
+使用 Godot `4.6.x` 打开仓库根目录，运行主场景 `scenes/main/main.tscn`。
 
 ### 9.2 核心规则测试
 
@@ -201,4 +201,4 @@ cp build/web/index.html build/web/404.html
 
 ## 一句话工作守则
 
-在这个仓库里，正确做法是：**优先改 `prototype_*` 活跃实现，保持分层，补函数头注释，同步文档，并用已证实的测试/冒烟方式验证后再交付。**
+在这个仓库里，正确做法是：**优先改当前 main 主场景活跃链路，保持分层，补函数头注释，同步文档，并用已证实的测试/冒烟方式验证后再交付。**

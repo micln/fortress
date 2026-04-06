@@ -1,4 +1,4 @@
-class_name PrototypeMapRegistry
+class_name MapRegistry
 extends RefCounted
 
 ## 地图注册表
@@ -7,12 +7,12 @@ extends RefCounted
 ## 支持按 ID 获取地图定义对象。
 
 # === 单例 ===
-static func get_instance() -> PrototypeMapRegistry:
+static func get_instance() -> MapRegistry:
 	if _instance == null:
-		_instance = PrototypeMapRegistry.new()
+		_instance = MapRegistry.new()
 	return _instance
 
-static var _instance: PrototypeMapRegistry = null
+static var _instance: MapRegistry = null
 
 # === 地图注册表 ===
 var _maps: Dictionary = {}
@@ -22,7 +22,7 @@ func _init() -> void:
 
 
 ## 注册一张预设地图。
-func register_map(map_id: String, definition: PrototypePresetMapDefinition) -> void:
+func register_map(map_id: String, definition: RefCounted) -> void:
 	_maps[map_id] = definition
 
 

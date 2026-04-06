@@ -1,4 +1,4 @@
-class_name PrototypeMapJingxiang
+class_name MapJingxiang
 extends RefCounted
 
 ## 荆襄要地地图

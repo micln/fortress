@@ -1,4 +1,4 @@
-class_name PrototypeMarchOrder
+class_name MarchOrder
 extends RefCounted
 
 const MODE_CONTINUOUS: String = "continuous"

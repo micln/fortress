@@ -13,12 +13,12 @@ var _marching_units: Array = []
 var _next_march_order: int = 0
 
 var _battle_service = null
-var _PrototypeCityOwnerRef = null
+var _CityOwnerRef = null
 
 
 func setup(battle_service, city_owner_ref) -> void:
 	_battle_service = battle_service
-	_PrototypeCityOwnerRef = city_owner_ref
+	_CityOwnerRef = city_owner_ref
 
 
 func launch_march(source_id: int, target_id: int, unit_owner: int, count: int, march_type: String, source_position: Vector2, target_position: Vector2) -> Dictionary:
@@ -181,7 +181,7 @@ func draw_arrows(canvas: Node2D, camera, cities: Array, order_dispatch_service) 
 
 		var arrow_spacing: float = 80.0 * camera.map_zoom
 		var arrow_count: int = max(1, int(distance / arrow_spacing))
-		var owner_color: Color = _PrototypeCityOwnerRef.get_color(source.owner) if _PrototypeCityOwnerRef else Color.WHITE
+		var owner_color: Color = _CityOwnerRef.get_color(source.owner) if _CityOwnerRef else Color.WHITE
 		var arrow_size: float = max(6.0, 10.0 * camera.map_zoom)
 
 		for i in range(arrow_count):
@@ -218,7 +218,7 @@ func _draw_unit_as_soldiers(canvas: Node2D, unit: Dictionary, camera) -> void:
 	var visible_count: int = min(int(ceil(float(unit["count"]) / 10.0)), MAX_VISUAL_SOLDIERS_PER_UNIT)
 	var lane_offset: float = float(unit.get("visual_lane_offset", 0.0)) * camera.map_zoom
 	var front_position: Vector2 = camera.world_to_screen(_get_unit_position(unit)) + lane_direction * lane_offset
-	var unit_color: Color = _PrototypeCityOwnerRef.get_color(int(unit["owner"])) if _PrototypeCityOwnerRef else Color.WHITE
+	var unit_color: Color = _CityOwnerRef.get_color(int(unit["owner"])) if _CityOwnerRef else Color.WHITE
 	var outline_width: float = max(1.0, 2.0 * camera.map_zoom)
 
 	for soldier_index: int in range(visible_count):

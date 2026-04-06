@@ -1,4 +1,4 @@
-extends "res://scripts/presentation/prototype_main_game_layer_b.gd"
+extends "res://scenes/main/main_flow.gd"
 
 func _ready() -> void:
 	_random.randomize()
@@ -25,7 +25,7 @@ func _ready() -> void:
 		Callable(self, "_on_game_paused"),
 		Callable(self, "_on_game_resumed")
 	)
-	_march_controller.setup(_battle_service, PrototypeCityOwnerRef)
+	_march_controller.setup(_battle_service, CityOwnerRef)
 	_input_handler.setup(
 		Callable(self, "_input_is_game_over"),
 		Callable(self, "_input_is_game_started"),
@@ -78,7 +78,7 @@ func _setup_map_selection() -> void:
 func _on_map_selected(map_id: String) -> void:
 	_current_map_id = map_id
 	# 根据地图支持的方数调整玩家数量
-	var registry: PrototypeMapRegistry = PrototypeMapRegistryRef.get_instance()
+	var registry = MapRegistryRef.get_instance()
 	var map_def = registry.get_map_definition(map_id)
 	if map_def != null:
 		var supported_counts: Array = map_def.get_metadata().get("supported_faction_counts", [2, 3, 4, 5])
@@ -95,7 +95,7 @@ func _on_map_selected(map_id: String) -> void:
 ## 调用场景：地图选择面板点击取消后。
 ## 主要逻辑：使用默认地图，开始新对局并直接进入游戏。
 func _on_map_selection_cancelled() -> void:
-	var registry: PrototypeMapRegistry = PrototypeMapRegistryRef.get_instance()
+	var registry = MapRegistryRef.get_instance()
 	_current_map_id = registry.get_default_map_id()
 	_start_new_match(_current_map_id)
 	_show_play_state()
@@ -360,7 +360,7 @@ func _draw_marching_unit_as_soldiers(unit: Dictionary) -> void:
 	var visible_count: int = min(int(ceil(float(unit["count"]) / 10.0)), MAX_VISUAL_SOLDIERS_PER_UNIT)
 	var lane_offset: float = float(unit.get("visual_lane_offset", 0.0)) * _camera_controller.map_zoom
 	var front_position: Vector2 = _camera_controller.world_to_screen(_get_marching_unit_position(unit)) + lane_direction * lane_offset
-	var unit_color: Color = PrototypeCityOwnerRef.get_color(int(unit["owner"]))
+	var unit_color: Color = CityOwnerRef.get_color(int(unit["owner"]))
 	var outline_width: float = max(1.0, 2.0 * _camera_controller.map_zoom)
 	for soldier_index: int in range(visible_count):
 		var soldier_position: Vector2 = front_position - march_direction * soldier_spacing * float(soldier_index)
