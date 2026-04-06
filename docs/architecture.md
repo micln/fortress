@@ -65,14 +65,13 @@
 
 - `Cities`
   - 运行时挂载所有城市视图实例
+  - 实例来源为 `scenes/world/city.tscn`
 - `UILayer`
   - 顶部状态条与底部操作栏
 - `Overlay`
   - 开始与结束面板
 - `OrderDialog`
   - 玩家出兵数量选择
-- `Cities`
-  - 运行时通过 `scenes/world/city.tscn` 直接实例化城池节点
 
 ## 关键设计取舍
 

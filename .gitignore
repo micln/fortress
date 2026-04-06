@@ -21,3 +21,4 @@ obj/
 
 # Local build/export output
 build/
+**.gd.uid

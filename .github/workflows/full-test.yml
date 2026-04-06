@@ -1,0 +1,38 @@
+name: full-test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Godot 4.6.1
+        uses: chickensoft-games/setup-godot@v2.3.0
+        with:
+          version: 4.6.1
+          use-dotnet: false
+          include-templates: true
+
+      - name: Install smoke test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+
+      - name: Import project assets
+        run: godot --headless --path . --import
+
+      - name: Run headless rule tests
+        run: HOME=/tmp XDG_DATA_HOME=/tmp godot --headless --path . -s res://tests/test_runner.gd
+
+      - name: Run web smoke check
+        run: scripts/tools/web_smoke_check.sh
