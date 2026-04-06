@@ -1,0 +1,66 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="FontFile" path="res://assets/fonts/NotoSansSC-Regular.otf" id="3_font"]
+[ext_resource type="Script" path="res://scripts/presentation/hud_controller.gd" id="4_hud"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_hud_panel"]
+bg_color = Color(0.0705882, 0.0941176, 0.141176, 0.45)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.392157, 0.533333, 0.74902, 0.5)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.15)
+shadow_size = 2
+
+[sub_resource type="LabelSettings" id="LabelSettings_status"]
+font = ExtResource("3_font")
+font_size = 35
+font_color = Color(0.956863, 0.972549, 1, 1)
+outline_size = 1
+outline_color = Color(0.027451, 0.0431373, 0.0705882, 0.7)
+
+[sub_resource type="LabelSettings" id="LabelSettings_hint"]
+font = ExtResource("3_font")
+font_size = 30
+font_color = Color(0.768627, 0.843137, 0.921569, 1)
+outline_size = 0
+outline_color = Color(0, 0, 0, 0)
+
+[node name="TopPanel" type="PanelContainer"]
+anchor_right = 1.0
+offset_left = 24.0
+offset_top = 16.0
+offset_right = -24.0
+offset_bottom = 190.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBox_hud_panel")
+script = ExtResource("4_hud")
+
+[node name="Margin" type="MarginContainer" parent="."]
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 14
+
+[node name="InfoColumn" type="VBoxContainer" parent="Margin"]
+theme_override_constants/separation = 4
+
+[node name="StatusLabel" type="Label" parent="Margin/InfoColumn"]
+text = "选择己方城市，然后点击相邻目标城市发起进攻。"
+autowrap_mode = 3
+label_settings = SubResource("LabelSettings_status")
+
+[node name="HintLabel" type="Label" parent="Margin/InfoColumn"]
+text = "蓝方是你，红方是敌人，灰色中立城市不产兵。"
+autowrap_mode = 3
+label_settings = SubResource("LabelSettings_hint")
+
+[node name="AiConfigLabel" type="Label" parent="Margin/InfoColumn"]
+text = "电脑：1 家 | 普通 | 进攻型"
+autowrap_mode = 3
+label_settings = SubResource("LabelSettings_hint")

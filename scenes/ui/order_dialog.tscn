@@ -1,0 +1,182 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="FontFile" path="res://assets/fonts/NotoSansSC-Regular.otf" id="3_font"]
+[ext_resource type="Script" path="res://scripts/presentation/order_dialog_controller.gd" id="4_order"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_dialog_panel"]
+bg_color = Color(0.0588235, 0.0784314, 0.121569, 0.985)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.494118, 0.658824, 0.960784, 0.95)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+shadow_color = Color(0, 0, 0, 0.45)
+shadow_size = 10
+
+[sub_resource type="LabelSettings" id="LabelSettings_overlay_title"]
+font = ExtResource("3_font")
+font_size = 81
+font_color = Color(0.996078, 0.952941, 0.792157, 1)
+outline_size = 2
+outline_color = Color(0.0392157, 0.054902, 0.0862745, 0.92)
+
+[sub_resource type="LabelSettings" id="LabelSettings_overlay_body"]
+font = ExtResource("3_font")
+font_size = 46
+font_color = Color(0.964706, 0.976471, 1, 1)
+outline_size = 1
+outline_color = Color(0.0235294, 0.0352941, 0.0588235, 0.72)
+
+[sub_resource type="LabelSettings" id="LabelSettings_hint"]
+font = ExtResource("3_font")
+font_size = 30
+font_color = Color(0.768627, 0.843137, 0.921569, 1)
+outline_size = 0
+outline_color = Color(0, 0, 0, 0)
+
+[node name="OrderDialog" type="CanvasLayer"]
+
+[node name="Shade" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0117647, 0.0156863, 0.027451, 0.68)
+
+[node name="Panel" type="PanelContainer" parent="."]
+anchor_left = 0.1
+anchor_top = 0.15
+anchor_right = 0.9
+anchor_bottom = 0.88
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 0.0
+offset_bottom = 0.0
+custom_minimum_size = Vector2(875, 910)
+theme_override_styles/panel = SubResource("StyleBox_dialog_panel")
+script = ExtResource("4_order")
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+theme_override_constants/margin_left = 42
+theme_override_constants/margin_top = 42
+theme_override_constants/margin_right = 42
+theme_override_constants/margin_bottom = 42
+
+[node name="Column" type="VBoxContainer" parent="Panel/Margin"]
+theme_override_constants/separation = 28
+
+[node name="OrderScroll" type="ScrollContainer" parent="Panel/Margin/Column"]
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="OrderContent" type="VBoxContainer" parent="Panel/Margin/Column/OrderScroll"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 16
+
+[node name="TitleLabel" type="Label" parent="Panel/Margin/Column/OrderScroll/OrderContent"]
+text = "出兵数量"
+horizontal_alignment = 1
+label_settings = SubResource("LabelSettings_overlay_title")
+
+[node name="ContextLabel" type="Label" parent="Panel/Margin/Column/OrderScroll/OrderContent"]
+text = "从 A 到 B"
+autowrap_mode = 3
+label_settings = SubResource("LabelSettings_overlay_body")
+
+[node name="RecommendedLabel" type="Label" parent="Panel/Margin/Column/OrderScroll/OrderContent"]
+text = "推荐兵力"
+autowrap_mode = 3
+label_settings = SubResource("LabelSettings_hint")
+
+[node name="ForecastLabel" type="Label" parent="Panel/Margin/Column/OrderScroll/OrderContent"]
+text = "预计到达信息"
+autowrap_mode = 3
+label_settings = SubResource("LabelSettings_hint")
+
+[node name="OutcomeLabel" type="Label" parent="Panel/Margin/Column/OrderScroll/OrderContent"]
+text = "预计结果"
+autowrap_mode = 3
+label_settings = SubResource("LabelSettings_overlay_body")
+
+[node name="CountLabel" type="Label" parent="Panel/Margin/Column/OrderScroll/OrderContent"]
+text = "0"
+horizontal_alignment = 1
+label_settings = SubResource("LabelSettings_overlay_title")
+
+[node name="AdjustRow" type="HBoxContainer" parent="Panel/Margin/Column/OrderScroll/OrderContent"]
+alignment = 1
+theme_override_constants/separation = 25
+
+[node name="Minus10Button" type="Button" parent="Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow"]
+text = "-10"
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(193, 91)
+
+[node name="Minus1Button" type="Button" parent="Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow"]
+text = "-1"
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(175, 91)
+
+[node name="Plus1Button" type="Button" parent="Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow"]
+text = "+1"
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(175, 91)
+
+[node name="Plus10Button" type="Button" parent="Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow"]
+text = "+10"
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(193, 91)
+
+[node name="QuickGrid" type="GridContainer" parent="Panel/Margin/Column/OrderScroll/OrderContent"]
+columns = 3
+theme_override_constants/h_separation = 25
+theme_override_constants/v_separation = 25
+
+[node name="Plus20Button" type="Button" parent="Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
+text = "+20"
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(0, 91)
+
+[node name="Plus50Button" type="Button" parent="Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
+text = "+50"
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(0, 91)
+
+[node name="HalfButton" type="Button" parent="Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
+text = "50%"
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(0, 91)
+
+[node name="FullButton" type="Button" parent="Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
+text = "100%"
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(0, 91)
+
+[node name="RecommendButton" type="Button" parent="Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
+text = "推荐"
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(0, 91)
+
+[node name="MaxKeepOneButton" type="Button" parent="Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
+text = "留1人"
+theme_override_font_sizes/font_size = 42
+custom_minimum_size = Vector2(0, 91)
+
+[node name="ActionRow" type="HBoxContainer" parent="Panel/Margin/Column"]
+alignment = 1
+theme_override_constants/separation = 16
+
+[node name="CancelButton" type="Button" parent="Panel/Margin/Column/ActionRow"]
+text = "取消"
+theme_override_font_sizes/font_size = 46
+custom_minimum_size = Vector2(315, 102)
+
+[node name="ConfirmButton" type="Button" parent="Panel/Margin/Column/ActionRow"]
+text = "确认出兵"
+theme_override_font_sizes/font_size = 46
+custom_minimum_size = Vector2(385, 102)

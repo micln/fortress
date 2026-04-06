@@ -1,0 +1,138 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="FontFile" path="res://assets/fonts/NotoSansSC-Regular.otf" id="3_font"]
+[ext_resource type="Script" path="res://scripts/presentation/overlay_controller.gd" id="4_overlay"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_overlay_panel"]
+bg_color = Color(0.0470588, 0.0666667, 0.105882, 0.98)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.913725, 0.835294, 0.509804, 0.95)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+shadow_color = Color(0, 0, 0, 0.4)
+shadow_size = 10
+
+[sub_resource type="LabelSettings" id="LabelSettings_overlay_title"]
+font = ExtResource("3_font")
+font_size = 81
+font_color = Color(0.996078, 0.952941, 0.792157, 1)
+outline_size = 2
+outline_color = Color(0.0392157, 0.054902, 0.0862745, 0.92)
+
+[sub_resource type="LabelSettings" id="LabelSettings_overlay_body"]
+font = ExtResource("3_font")
+font_size = 46
+font_color = Color(0.964706, 0.976471, 1, 1)
+outline_size = 1
+outline_color = Color(0.0235294, 0.0352941, 0.0588235, 0.72)
+
+[sub_resource type="LabelSettings" id="LabelSettings_overlay_rule"]
+font = ExtResource("3_font")
+font_size = 40
+font_color = Color(0.796078, 0.862745, 0.933333, 1)
+outline_size = 0
+outline_color = Color(0, 0, 0, 0)
+
+[node name="Overlay" type="CanvasLayer"]
+
+[node name="Shade" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0117647, 0.0156863, 0.027451, 0.72)
+
+[node name="OverlayPanel" type="PanelContainer" parent="."]
+anchor_left = 0.08
+anchor_top = 0.12
+anchor_right = 0.92
+anchor_bottom = 0.9
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 0.0
+offset_bottom = 0.0
+custom_minimum_size = Vector2(520, 640)
+theme_override_styles/panel = SubResource("StyleBox_overlay_panel")
+script = ExtResource("4_overlay")
+
+[node name="OverlayMargin" type="MarginContainer" parent="OverlayPanel"]
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 28
+
+[node name="OverlayColumn" type="VBoxContainer" parent="OverlayPanel/OverlayMargin"]
+theme_override_constants/separation = 20
+
+[node name="OverlayScroll" type="ScrollContainer" parent="OverlayPanel/OverlayMargin/OverlayColumn"]
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="OverlayContent" type="VBoxContainer" parent="OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 20
+
+[node name="OverlayTitleLabel" type="Label" parent="OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent"]
+label_settings = SubResource("LabelSettings_overlay_title")
+text = "准备开战"
+horizontal_alignment = 1
+
+[node name="OverlayBodyLabel" type="Label" parent="OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent"]
+text = "蓝色是你，其他颜色是不同电脑势力，灰色是中立城市。"
+autowrap_mode = 3
+label_settings = SubResource("LabelSettings_overlay_body")
+
+[node name="RuleLabel" type="Label" parent="OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent"]
+text = "操作方法：先点你的城市，再点相邻目标城市。选中后不会自动取消，你可以慢慢选。"
+autowrap_mode = 3
+label_settings = SubResource("LabelSettings_overlay_rule")
+
+[node name="RuleLabel2" type="Label" parent="OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent"]
+text = "战斗规则：双方士兵直接相减。攻方人数更多就占领目标城，否则只会消耗守军。"
+autowrap_mode = 3
+label_settings = SubResource("LabelSettings_overlay_rule")
+
+[node name="RuleLabel3" type="Label" parent="OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent"]
+text = "占领中的城市每秒产 1 兵。你选中城市时，电脑 AI 会暂停主动出兵。"
+autowrap_mode = 3
+label_settings = SubResource("LabelSettings_overlay_rule")
+
+[node name="SettingsGrid" type="GridContainer" parent="OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent"]
+columns = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 16
+
+[node name="AiCountLabel" type="Label" parent="OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/SettingsGrid"]
+text = "总方数"
+label_settings = SubResource("LabelSettings_overlay_rule")
+
+[node name="AiCountOption" type="OptionButton" parent="OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/SettingsGrid"]
+theme_override_font_sizes/font_size = 24
+custom_minimum_size = Vector2(0, 52)
+
+[node name="DifficultyLabel" type="Label" parent="OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/SettingsGrid"]
+text = "电脑难度"
+label_settings = SubResource("LabelSettings_overlay_rule")
+
+[node name="DifficultyOption" type="OptionButton" parent="OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/SettingsGrid"]
+theme_override_font_sizes/font_size = 24
+custom_minimum_size = Vector2(0, 52)
+
+[node name="StyleLabel" type="Label" parent="OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/SettingsGrid"]
+text = "电脑风格"
+label_settings = SubResource("LabelSettings_overlay_rule")
+
+[node name="StyleOption" type="OptionButton" parent="OverlayPanel/OverlayMargin/OverlayColumn/OverlayScroll/OverlayContent/SettingsGrid"]
+theme_override_font_sizes/font_size = 24
+custom_minimum_size = Vector2(0, 52)
+
+[node name="OverlayActionButton" type="Button" parent="OverlayPanel/OverlayMargin/OverlayColumn"]
+text = "开始游戏"
+theme_override_font_sizes/font_size = 28
+custom_minimum_size = Vector2(0, 64)

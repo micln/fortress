@@ -1,0 +1,51 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/presentation/floating_upgrade_controller.gd" id="1_controller"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_upgrade_panel"]
+bg_color = Color(0.08, 0.12, 0.18, 0.65)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.5, 0.65, 0.85, 0.55)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+shadow_color = Color(0, 0, 0, 0.2)
+shadow_size = 2
+
+[node name="FloatingUpgradePanel" type="PanelContainer"]
+visible = false
+offset_left = 360.0
+offset_top = 920.0
+offset_right = 580.0
+offset_bottom = 960.0
+theme_override_styles/panel = SubResource("StyleBox_upgrade_panel")
+script = ExtResource("1_controller")
+
+[node name="FloatingUpgradeMargin" type="MarginContainer" parent="."]
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 4
+
+[node name="FloatingUpgradeRow" type="HBoxContainer" parent="."]
+alignment = 1
+theme_override_constants/separation = 6
+
+[node name="LevelButton" type="Button" parent="FloatingUpgradeRow"]
+text = "Lv"
+theme_override_font_sizes/font_size = 25
+custom_minimum_size = Vector2(91, 53)
+
+[node name="DefenseButton" type="Button" parent="FloatingUpgradeRow"]
+text = "防"
+theme_override_font_sizes/font_size = 25
+custom_minimum_size = Vector2(91, 53)
+
+[node name="ProductionButton" type="Button" parent="FloatingUpgradeRow"]
+text = "产"
+theme_override_font_sizes/font_size = 25
+custom_minimum_size = Vector2(91, 53)

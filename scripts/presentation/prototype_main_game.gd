@@ -11,6 +11,8 @@ const AudioManagerRef = preload("res://scripts/presentation/audio_manager.gd")
 const BackgroundRendererRef = preload("res://scripts/presentation/background_renderer.gd")
 const CameraControllerRef = preload("res://scripts/presentation/camera_controller.gd")
 const PrototypeMapRegistryRef = preload("res://scripts/application/prototype_map_registry.gd")
+const GameStateManagerRef = preload("res://scripts/presentation/game_state_manager.gd")
+const MarchControllerRef = preload("res://scripts/presentation/march_controller.gd")
 const UI_FONT: Font = preload("res://assets/fonts/NotoSansSC-Regular.otf")
 const MAP_ZOOM_STEP: float = 0.1
 const MARCH_SPEED: float = 180.0
@@ -49,6 +51,8 @@ var _transfer_arrival_service = PrototypeTransferArrivalServiceRef.new()
 var _audio_manager = AudioManagerRef.new()
 var _background_renderer = BackgroundRendererRef.new()
 var _camera_controller = CameraControllerRef.new()
+var _game_state_manager = GameStateManagerRef.new()
+var _march_controller = MarchControllerRef.new()
 var _cities: Array = []
 var _city_views: Dictionary = {}
 var _marching_units: Array = []
@@ -177,6 +181,13 @@ func _ready() -> void:
 		Callable(self, "_is_desktop_runtime"),
 		Callable(self, "_get_top_panel_bottom")
 	)
+	_game_state_manager.setup(
+		Callable(self, "_on_game_started"),
+		Callable(self, "_on_game_over"),
+		Callable(self, "_on_game_paused"),
+		Callable(self, "_on_game_resumed")
+	)
+	_march_controller.setup(_battle_service, PrototypeCityOwnerRef)
 	_setup_ai_controls()
 	_setup_continuous_status_label()
 	_apply_ai_profile()
