@@ -16,6 +16,8 @@ const MarchControllerRef = preload("res://scripts/presentation/march_controller.
 const PrototypeMainInputHandlerRef = preload("res://scripts/presentation/prototype_main_input_handler.gd")
 const PrototypeMatchTelemetryRef = preload("res://scripts/presentation/prototype_match_telemetry.gd")
 const UI_FONT: Font = preload("res://assets/fonts/NotoSansSC-Regular.otf")
+const PAUSE_BUTTON_ICON: Texture2D = preload("res://assets/icons/pause.svg")
+const RESUME_BUTTON_ICON: Texture2D = preload("res://assets/icons/play.svg")
 const MARCH_SPEED: float = 180.0
 const UNIT_RADIUS: float = 16.0
 const SOLDIER_VISUAL_RADIUS: float = 16.0
@@ -270,6 +272,19 @@ func _remove_continuous_order(source_id: int, target_id: int) -> void:
 ## 即使城市起手已满员，只要挂着持续任务，也会把这一秒积累出来的产能直接转成真实出兵。
 func _is_gameplay_paused() -> bool:
 	return _manual_paused or overlay_layer.visible or order_dialog.visible
+
+
+## 刷新底部暂停按钮的图标与提示文案。
+##
+## 调用场景：每次刷新主视图时。
+## 主要逻辑：战局暂停时按钮改成“继续”图标，恢复后切回“暂停”图标，避免状态切换后图标不更新。
+func _refresh_pause_button_visual() -> void:
+	if _manual_paused:
+		pause_button.icon = RESUME_BUTTON_ICON
+		pause_button.tooltip_text = "继续"
+		return
+	pause_button.icon = PAUSE_BUTTON_ICON
+	pause_button.tooltip_text = "暂停"
 
 
 ## 处理玩家在主场景上的原始输入，用于地图拖拽与基础指针跟踪。

@@ -356,6 +356,7 @@ func _refresh_view() -> void:
 			city_view.sync_from_state(city, city.city_id == _selected_city_id, _camera_controller.world_to_screen(city.position))
 	hud.update_ai_config(_player_count, _get_ai_difficulty_name(_ai_difficulty), _get_ai_style_name(_ai_style), _manual_paused)
 	pause_button.disabled = _game_over or not _game_started
+	_refresh_pause_button_visual()
 	_refresh_upgrade_buttons()
 	queue_redraw()
 
@@ -646,9 +647,104 @@ func _update_marching_units(delta: float) -> void:
 
 	for arrived_unit in arrived_units:
 		_marching_units.erase(arrived_unit)
-		_resolve_marching_unit_arrival(arrived_unit)
+	_resolve_arrived_units_by_city(arrived_units)
 
 	queue_redraw()
+
+
+## 把同一帧到达的行军单位按目标城市分组结算，减少“先处理谁”带来的结果偏差。
+##
+## 调用场景：`_update_marching_units()` 收集完本帧全部到达单位后。
+## 主要逻辑：同城先批量处理 `attack` 到达（同帧混战+一次攻城），再按发射顺序处理 `transfer`，
+## 保持“进攻优先于运兵”的既有语义，同时避免多方同帧入城时的串行顺序敏感。
+func _resolve_arrived_units_by_city(arrived_units: Array) -> void:
+	if arrived_units.is_empty():
+		return
+
+	var units_by_target: Dictionary = {}
+	for unit in arrived_units:
+		var target_id: int = int(unit["target_id"])
+		if not units_by_target.has(target_id):
+			units_by_target[target_id] = []
+		units_by_target[target_id].append(unit)
+
+	var ordered_target_ids: Array[int] = []
+	for target_key in units_by_target.keys():
+		ordered_target_ids.append(int(target_key))
+	ordered_target_ids.sort()
+
+	for target_id in ordered_target_ids:
+		var target_units: Array = units_by_target[target_id]
+		var attack_units: Array = []
+		var transfer_units: Array = []
+		for unit in target_units:
+			if String(unit["type"]) == "attack":
+				attack_units.append(unit)
+			else:
+				transfer_units.append(unit)
+
+		if not attack_units.is_empty():
+			_resolve_simultaneous_attack_arrivals_for_city(target_id, attack_units)
+
+		if transfer_units.is_empty():
+			continue
+		transfer_units.sort_custom(_sort_arrived_units)
+		for transfer_unit in transfer_units:
+			_resolve_marching_unit_arrival(transfer_unit)
+
+
+## 结算某一城市在同一帧内到达的全部进攻部队，避免按发射顺序逐条改写城池状态。
+##
+## 调用场景：`_resolve_arrived_units_by_city()` 拆分出同目标城市的 `attack` 单位后。
+## 主要逻辑：先按阵营聚合到达兵力，再交给应用层做同帧混战与一次攻城结算；
+## 结算完成后统一处理归属变化、提示文案、音效与刷新。
+func _resolve_simultaneous_attack_arrivals_for_city(target_id: int, attack_units: Array) -> void:
+	if target_id < 0 or target_id >= _cities.size():
+		return
+	if attack_units.is_empty():
+		return
+
+	var target = _cities[target_id]
+	var owner_before_arrival: int = target.owner
+	var arrivals_by_owner: Dictionary = {}
+	for unit in attack_units:
+		var owner: int = int(unit["owner"])
+		var count: int = max(0, int(unit["count"]))
+		if count <= 0:
+			continue
+		arrivals_by_owner[owner] = int(arrivals_by_owner.get(owner, 0)) + count
+
+	if arrivals_by_owner.is_empty():
+		return
+
+	var result: Dictionary = _battle_service.resolve_simultaneous_attack_arrivals(target, arrivals_by_owner)
+	_log_game_debug("march_arrival_attack_batch", {
+		"target_id": target_id,
+		"target_name": target.name,
+		"arrivals_by_owner": arrivals_by_owner,
+		"winner_owner": result.get("winner_owner", PrototypeCityOwnerRef.NEUTRAL),
+		"winner_count": result.get("winner_count", 0),
+		"contested": result.get("contested", false),
+		"captured": result.get("captured", false),
+		"reinforced": result.get("reinforced", false),
+		"target_owner_after": target.owner,
+		"target_soldiers_after": target.soldiers
+	})
+	hud.update_status(String(result.get("message", "")))
+	if bool(result.get("captured", false)):
+		hud.update_hint("同帧多支进攻已合并结算，避免先后顺序改变攻城结果。")
+		_audio_manager.play_sfx_by_id("capture")
+	elif bool(result.get("reinforced", false)):
+		hud.update_hint("同阵营到达部队已先并入守军，再结算同帧进攻。")
+		_audio_manager.play_sfx_by_id("transfer")
+	else:
+		hud.update_hint("同帧多方进攻已按批量规则结算。")
+		_audio_manager.play_sfx_by_id("attack")
+
+	if owner_before_arrival != target.owner:
+		_handle_city_owner_changed(target.city_id, owner_before_arrival, target.owner)
+	_refresh_view()
+	_check_game_over()
 
 
 ## 处理道路上彼此接触的不同势力行军单位。
@@ -1059,6 +1155,18 @@ func _register_continuous_order(source_id: int, target_id: int) -> void:
 func _produce_soldiers_and_dispatch_continuous_orders() -> void:
 	for city in _cities:
 		city.accumulate_production_progress(1.0)
+		var has_continuous_orders: bool = _order_dispatch_service.has_orders_for_source(city.city_id)
+		if not city.can_produce() and not has_continuous_orders:
+			var dropped_ready_count: int = city.discard_ready_production()
+			if dropped_ready_count > 0:
+				_log_game_debug("production_ready_dropped", {
+					"city_id": city.city_id,
+					"city_name": city.name,
+					"dropped_ready_count": dropped_ready_count,
+					"owner": city.owner
+				})
+			continue
+
 		var produced_count: int = 0
 		var dispatched_from_full_count: int = 0
 		while city.get_ready_production_count() > 0:
@@ -1069,7 +1177,7 @@ func _produce_soldiers_and_dispatch_continuous_orders() -> void:
 				_dispatch_continuous_orders_for_source(city.city_id)
 				continue
 
-			if not _order_dispatch_service.has_orders_for_source(city.city_id):
+			if not has_continuous_orders:
 				break
 			if not city.consume_one_ready_production():
 				break

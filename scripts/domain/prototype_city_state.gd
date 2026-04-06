@@ -208,6 +208,18 @@ func consume_one_ready_production() -> bool:
 	return true
 
 
+## 丢弃当前已累计完成的整数产能次数，并保留小数部分。
+##
+## 调用场景：表现层确认“城市已满员且没有持续任务”时，避免把历史积压产能在后续容量恢复后瞬间全部兑换。
+## 主要逻辑：返回被丢弃的整数次数，并把内部进度裁剪到 `[0, 1)` 区间，仅保留下一次产兵所需的小数进度。
+func discard_ready_production() -> int:
+	var dropped_count: int = int(floor(_production_progress))
+	if dropped_count <= 0:
+		return 0
+	_production_progress -= float(dropped_count)
+	return dropped_count
+
+
 ## 返回指定等级对应的人口上限。
 ##
 ## 调用场景：地图生成、等级升级、UI 展示未来升级收益时。

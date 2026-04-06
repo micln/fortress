@@ -28,6 +28,8 @@ func _initialize() -> void:
 	_run_test("attack_arrival_fail", Callable(self, "_test_attack_arrival_fail"), failures)
 	_run_test("attack_arrival_neutral_empty_city", Callable(self, "_test_attack_arrival_neutral_empty_city"), failures)
 	_run_test("attack_arrival_occupied_empty_city_without_defense_block", Callable(self, "_test_attack_arrival_occupied_empty_city_without_defense_block"), failures)
+	_run_test("attack_arrival_simultaneous_multi_owner_tie_keeps_defender", Callable(self, "_test_attack_arrival_simultaneous_multi_owner_tie_keeps_defender"), failures)
+	_run_test("attack_arrival_simultaneous_with_defender_reinforcement", Callable(self, "_test_attack_arrival_simultaneous_with_defender_reinforcement"), failures)
 	_run_test("friendly_transfer", Callable(self, "_test_friendly_transfer"), failures)
 	_run_test("friendly_transfer_overflow", Callable(self, "_test_friendly_transfer_overflow"), failures)
 	_run_test("friendly_transfer_dispatches_each_arrival", Callable(self, "_test_friendly_transfer_dispatches_each_arrival"), failures)
@@ -37,6 +39,7 @@ func _initialize() -> void:
 	_run_test("production_capacity", Callable(self, "_test_production_capacity"), failures)
 	_run_test("production_single_step_after_capacity_reopens", Callable(self, "_test_production_single_step_after_capacity_reopens"), failures)
 	_run_test("production_ready_count_when_full", Callable(self, "_test_production_ready_count_when_full"), failures)
+	_run_test("production_discard_ready_keeps_fraction", Callable(self, "_test_production_discard_ready_keeps_fraction"), failures)
 	_run_test("upgrade_level_success", Callable(self, "_test_upgrade_level_success"), failures)
 	_run_test("upgrade_defense_insufficient", Callable(self, "_test_upgrade_defense_insufficient"), failures)
 	_run_test("upgrade_production_step", Callable(self, "_test_upgrade_production_step"), failures)
@@ -180,6 +183,38 @@ func _test_attack_arrival_occupied_empty_city_without_defense_block() -> bool:
 	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.AI_OWNER_START, 1, 20, 0, [0], 3, 1.0)
 	var result: Dictionary = battle_service.resolve_attack_arrival(target, PrototypeCityOwnerRef.PLAYER, 1)
 	return result.get("captured", false) and target.owner == PrototypeCityOwnerRef.PLAYER and target.soldiers == 1
+
+
+## 验证同一帧多方进攻同时抵达中立城时，会先做攻方互耗，避免先后顺序决定结果。
+##
+## 调用场景：多势力持续出兵同时冲向中立城的回归测试。
+## 主要逻辑：构造双方各 6 人同帧到达 4 人中立城，检查攻方先同归于尽，中立城守军与归属保持不变。
+func _test_attack_arrival_simultaneous_multi_owner_tie_keeps_defender() -> bool:
+	var battle_service = PrototypeBattleServiceRef.new()
+	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.NEUTRAL, 1, 20, 4, [0], 1, 1.0)
+	var result: Dictionary = battle_service.resolve_simultaneous_attack_arrivals(target, {
+		PrototypeCityOwnerRef.PLAYER: 6,
+		PrototypeCityOwnerRef.AI_OWNER_START: 6
+	})
+	return bool(result.get("attackers_cancelled", false)) \
+		and target.owner == PrototypeCityOwnerRef.NEUTRAL \
+		and target.soldiers == 4
+
+
+## 验证守方同帧增援会先并入守军，再和同帧进攻一起一次性结算。
+##
+## 调用场景：守城方先升级/调兵后，敌军多路同帧到达的回归测试。
+## 主要逻辑：构造守方 14 人、防御 2、同帧先收到 8 人增援再被 20 人进攻，检查城市不被攻下且只剩 2 人。
+func _test_attack_arrival_simultaneous_with_defender_reinforcement() -> bool:
+	var battle_service = PrototypeBattleServiceRef.new()
+	var target = PrototypeCityStateRef.new(1, "B", Vector2.RIGHT, PrototypeCityOwnerRef.PLAYER, 3, 55, 14, [0], 2, 1.0)
+	var result: Dictionary = battle_service.resolve_simultaneous_attack_arrivals(target, {
+		PrototypeCityOwnerRef.PLAYER: 8,
+		PrototypeCityOwnerRef.AI_OWNER_START: 20
+	})
+	return not bool(result.get("captured", false)) \
+		and target.owner == PrototypeCityOwnerRef.PLAYER \
+		and target.soldiers == 2
 
 
 ## 验证己方城市点到己方城市时会执行运兵而不是攻击。
@@ -329,6 +364,19 @@ func _test_production_ready_count_when_full() -> bool:
 	var consumed: bool = city.consume_one_ready_production()
 	var ready_after_consume: int = city.get_ready_production_count()
 	return ready_before_consume == 3 and consumed and ready_after_consume == 2
+
+
+## 验证丢弃整数产能积压时会保留小数进度，避免后续容量恢复后一次性爆发。
+##
+## 调用场景：满员且无持续任务时的积压清理回归测试。
+## 主要逻辑：先累计 3.2 的产能进度，再丢弃整数部分并补 1 秒产能，检查只会产生 1 次就绪产兵而不是 4 次。
+func _test_production_discard_ready_keeps_fraction() -> bool:
+	var city = PrototypeCityStateRef.new(0, "长安", Vector2.ZERO, PrototypeCityOwnerRef.PLAYER, 2, 35, 35, [1], 2, 1.0)
+	city.accumulate_production_progress(3.2)
+	var dropped_count: int = city.discard_ready_production()
+	city.accumulate_production_progress(1.0)
+	var ready_after_next_second: int = city.get_ready_production_count()
+	return dropped_count == 3 and ready_after_next_second == 1
 
 
 ## 验证等级升级会扣除驻军并提升容量上限。
