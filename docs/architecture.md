@@ -89,3 +89,61 @@
 - GitHub Actions 负责调用 Godot 的 Web 导出流程，并将静态产物发布到 GitHub Pages。
 - 这套自动化只属于仓库交付层，不改变运行时的 `presentation -> application -> domain` 依赖方向。
 - 中文字体文件 `assets/fonts/NotoSansSC-Regular.otf` 属于表现层支撑资源；`export_presets.cfg` 和 `.github/workflows/deploy-web.yml` 属于工程配置。
+
+## 演进计划（以可维护性为核心）
+
+本仓库后续会扩展更多功能（城市升级外观、地形影响行军、更多 UI 与交互）。为降低主控制器复杂度、减少场景路径脆弱性，并提升可并行迭代能力，采用如下“渐进式场景化 + 规则服务化”的演进路线。
+
+### 总原则
+
+- 规则仍保持 `domain/application` 的 `RefCounted` 纯逻辑（可 headless 测试），不要把结算与规则塞进 Node/场景。
+- 场景化主要作用于 `presentation`：UI 组件、可视实体、地形表现与交互对象。
+- 从“组合（composition）”逐步替代“继承分层（layer_a/b/c）”的职责扩张：主控制器逐步变薄，只做装配与编排。
+- 每一步改动都必须维持当前唯一运行链：`scenes/main/prototype_main.tscn` 仍引用 `scripts/presentation/prototype_main_game.gd`。
+- 每次改动后至少运行核心规则 headless 测试，并对主场景做最小手工验收。
+
+### 阶段 1：UI 子场景化（优先级最高）
+
+目标：减少 `$OrderDialog/Panel/...` 这类深路径引用，使 UI 可独立迭代与重构。
+
+- 拆分 `OrderDialog` 为独立子场景（推荐形态：`scenes/ui/order_dialog.tscn`）
+  - 子场景对外提供明确 API（例如 `open(context)`）并发出信号（例如 `confirmed/cancelled`）
+  - 主控制器只负责订阅信号、调用 application 服务、刷新状态
+- 拆分顶部状态条（推荐形态：`scenes/ui/status_bar.tscn`）
+  - 状态条只负责展示（当前提示、AI 配置摘要、观测数据等），不持有规则
+
+验收与验证：
+
+- 运行：在 Godot 中启动 `scenes/main/prototype_main.tscn`
+- 测试：`HOME=/tmp XDG_DATA_HOME=/tmp godot --headless --path . -s res://tests/test_runner.gd`
+
+### 阶段 2：城市表现彻底场景化（为“升级改变外观”做准备）
+
+目标：让城市外观与交互可独立迭代，不影响主控制器与规则层。
+
+- 将城市视图演进为独立场景（推荐形态：`scenes/world/city_view.tscn`）
+  - `PrototypeCityState`（domain）仍是唯一城市规则数据源
+  - `CityView`（presentation）只根据 `city.owner/level/node_type` 等渲染外观与输入
+- 城市升级的“属性变化”仍由 `application/domain` 驱动；城市升级的“外观变化”由 `CityView` 响应刷新。
+
+### 阶段 3：地形系统（先数据可测，后表现可视）
+
+目标：支持森林/山区等地形影响行军速度，且不让规则依赖节点树。
+
+- 先引入地形数据与查询接口（建议使用 `Resource` 或纯数据对象）
+  - 规则侧：行军时间/速度系数计算放在 `scripts/application/`（例如 TravelTime/March 相关服务）
+- 再引入地形表现层子场景（例如 `scenes/world/terrain_layer.tscn`）
+  - presentation 负责显示与交互（如 debug 可视化），不承载结算
+
+### 阶段 4：行军单位（当需要更复杂表现时再场景化）
+
+当前行军表现使用主场景 `_draw()` 直绘，轻量且性能友好；当出现以下需求时再考虑场景化：
+
+- 需要动画/特效/命中反馈/点击选择
+- 需要不同兵种或地形穿越效果（例如进森林减速、进山区更慢）
+
+推荐形态：`scenes/world/march_unit.tscn`（presentation），其速度/路径由 application 的计算结果驱动。
+
+### 备注：右侧“持续任务 HUD”
+
+若右侧持续任务 HUD 在后续设计中确认不再使用，可在 UI 子场景化完成后再进行清理；清理前建议先保持隐藏/不创建，避免与重构交织导致回归成本上升。

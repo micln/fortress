@@ -272,8 +272,16 @@ func _on_window_size_changed() -> void:
 	_apply_layout()
 
 
+## 对外暴露的响应式布局刷新入口。
+##
+## 调用场景：主场景统一处理窗口尺寸变化时（可选），或需要强制刷新布局时。
+## 主要逻辑：转调内部 `_apply_layout()`，保持 controller 内部成为唯一布局收敛点。
+func apply_responsive_layout() -> void:
+	_apply_layout()
+
+
 func _apply_layout() -> void:
-	var viewport_size: Vector2 = get_viewport_rect().size
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	var is_narrow_layout: bool = viewport_size.x <= NARROW_OVERLAY_BREAKPOINT
 	var quick_buttons: Array[Button] = [plus_20_button, plus_50_button, half_button, full_button, recommend_button, keep_one_button]
 	var adjust_buttons: Array[Button] = [minus_10_button, minus_1_button, plus_1_button, plus_10_button]

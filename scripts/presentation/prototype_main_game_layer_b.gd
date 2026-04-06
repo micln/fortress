@@ -35,23 +35,14 @@ func _start_new_match(map_id: String = "") -> void:
 	_overlay_mode = "start"
 	_last_winner = PrototypeCityOwnerRef.NEUTRAL
 	_selected_city_id = -1
-	_pending_order.clear()
-	_pending_order_count = 0
-	_pending_order_continuous_enabled = true
 	_order_dispatch_service.clear()
-	_continuous_dispatch_count_in_window = 0
-	_continuous_dispatch_soldiers_in_window = 0
-	_continuous_dispatch_window_elapsed = 0.0
-	_continuous_dispatch_last_second_count = 0
-	_continuous_dispatch_last_second_soldiers = 0
-	_continuous_dispatch_counts_by_source_in_window.clear()
-	_continuous_dispatch_counts_by_source_last_second.clear()
+	_telemetry.reset_continuous_dispatch_window()
 	_next_march_order = 0
 	_production_elapsed = 0.0
 	_enemy_elapsed = 0.0
 	_clear_city_views()
 	_marching_units.clear()
-	order_dialog_layer.visible = false
+	order_dialog.close()
 	_apply_ai_profile()
 	_input_handler.reset_gestures()
 	var viewport_size: Vector2 = get_viewport_rect().size
@@ -65,24 +56,26 @@ func _start_new_match(map_id: String = "") -> void:
 	}, _camera_controller.map_world_size, _random, _current_map_id)
 	if _cities.is_empty():
 		var error_message: String = _preset_map_loader.get_last_error_message()
-		status_label.text = "地图装载失败，请检查预设地图配置。"
-		hint_label.text = error_message if not error_message.is_empty() else "预设地图 loader 未返回可用城市数据。"
-		push_error("预设地图装载失败：%s" % hint_label.text)
-		_log_game_debug("map_load_failed", {"error_message": hint_label.text})
+		var hint_text: String = error_message if not error_message.is_empty() else "预设地图 loader 未返回可用城市数据。"
+		hud.update_status("地图装载失败，请检查预设地图配置。")
+		hud.update_hint(hint_text)
+		push_error("预设地图装载失败：%s" % hint_text)
+		_log_game_debug("map_load_failed", {"error_message": hint_text})
 		_refresh_view()
 		return
 	# zoom=1.0，偏移为0，城市从屏幕左上角开始绘制
 	_camera_controller.map_zoom = 1.0
 	_camera_controller.set_offset(Vector2(0, 0))
 	_spawn_city_views()
+	order_dialog.setup(_battle_service, _cities)
 	_log_game_debug("match_started", {
 		"player_count": _player_count,
 		"ai_difficulty": _ai_difficulty,
 		"ai_style": _ai_style,
 		"city_count": _cities.size()
 	})
-	status_label.text = "阅读说明后点击“开始游戏”。"
-	hint_label.text = "蓝色是你，其他颜色是电脑势力，灰色是中立城市不产兵；地图可拖拽浏览，桌面滚轮/手机双指可缩放。"
+	hud.update_status("阅读说明后点击“开始游戏”。")
+	hud.update_hint("蓝色是你，其他颜色是电脑势力，灰色是中立城市不产兵；地图可拖拽浏览，桌面滚轮/手机双指可缩放。")
 	_refresh_view()
 
 
@@ -118,7 +111,7 @@ func _spawn_city_views() -> void:
 ## 主要逻辑：第一次点击只能选中己方城市；第二次点击目标城市时，直接切换 `源 -> 目标` 持续任务；
 ## 若目标为敌方或中立城市则仍需道路相邻，若目标为己方城市则允许跨图运兵任务。
 func _on_city_pressed(city_id: int) -> void:
-	if _game_over or not _game_started or order_dialog_layer.visible:
+	if _game_over or not _game_started or order_dialog.visible:
 		return
 
 	_input_handler.arm_selection_cancel_guard(2)
@@ -131,11 +124,11 @@ func _on_city_pressed(city_id: int) -> void:
 		"selected_before": _selected_city_id,
 		"screen_position": _camera_controller.world_to_screen(clicked_city.position),
 		"world_position": clicked_city.position
-})
+	})
 
 	if _selected_city_id == -1:
 		if clicked_city.owner != PrototypeCityOwnerRef.PLAYER:
-			status_label.text = "先点蓝色己方城市。"
+			hud.update_status("先点蓝色己方城市。")
 			_audio_manager.play_sfx_by_id("error")
 			return
 		_selected_city_id = city_id
@@ -145,8 +138,8 @@ func _on_city_pressed(city_id: int) -> void:
 			"owner": clicked_city.owner,
 			"soldiers": clicked_city.soldiers
 		})
-		status_label.text = "已选中 %s。现在点击一个目标城市，直接切换持续出兵任务。" % clicked_city.name
-		hint_label.text = _build_selected_city_hint(clicked_city)
+		hud.update_status("已选中 %s。现在点击一个目标城市，直接切换持续出兵任务。" % clicked_city.name)
+		hud.update_hint(_build_selected_city_hint(clicked_city))
 		_audio_manager.play_sfx_by_id("select")
 		_refresh_view()
 		return
@@ -156,7 +149,7 @@ func _on_city_pressed(city_id: int) -> void:
 
 	var source = _cities[_selected_city_id]
 	if clicked_city.owner != source.owner and not source.is_neighbor(city_id):
-		status_label.text = "%s 和 %s 没有道路连接，请点相邻城市。" % [source.name, clicked_city.name]
+		hud.update_status("%s 和 %s 没有道路连接，请点相邻城市。" % [source.name, clicked_city.name])
 		_audio_manager.play_sfx_by_id("error")
 		return
 
@@ -209,11 +202,11 @@ func _toggle_player_continuous_order(source_id: int, target_id: int) -> void:
 		"current_mode": current_mode
 	})
 	if String(result.get("action", "")) == "removed":
-		status_label.text = "已停止持续出兵：%s -> %s。" % [source.name, target.name]
-		hint_label.text = "同一路线再次点击即可重新开启；源城还能继续配置其他目标。"
+		hud.update_status("已停止持续出兵：%s -> %s。" % [source.name, target.name])
+		hud.update_hint("同一路线再次点击即可重新开启；源城还能继续配置其他目标。")
 	else:
-		status_label.text = "已开启持续%s：%s -> %s。该城之后每产 1 兵就会自动派 1 人。" % [current_mode, source.name, target.name]
-		hint_label.text = "同一路线再次点击可关闭；一个源城有多条任务时会轮流出兵。"
+		hud.update_status("已开启持续%s：%s -> %s。该城之后每产 1 兵就会自动派 1 人。" % [current_mode, source.name, target.name])
+		hud.update_hint("同一路线再次点击可关闭；一个源城有多条任务时会轮流出兵。")
 	_refresh_view()
 
 
@@ -245,8 +238,8 @@ func _execute_transfer(source_id: int, target_id: int, moving_count: int, keep_s
 	if not keep_selection:
 		_selected_city_id = -1
 	if update_status_text:
-		status_label.text = result.get("message", "")
-		hint_label.text = "运兵现在会实际行军，距离越远，到达越慢。"
+		hud.update_status(String(result.get("message", "")))
+		hud.update_hint("运兵现在会实际行军，距离越远，到达越慢。")
 	if result.get("success", false):
 		_launch_marching_unit(source_id, target_id, int(result["owner"]), int(result["count"]), "transfer", true)
 		if update_status_text:
@@ -276,9 +269,10 @@ func _execute_attack(source_id: int, target_id: int, troop_count: int, is_player
 			"source_soldiers": source.soldiers
 		})
 		if update_status_text:
-			status_label.text = "%s 没有士兵可以出征。" % source.name
+			var empty_message: String = "%s 没有士兵可以出征。" % source.name
+			hud.update_status(empty_message)
 			_audio_manager.play_sfx_by_id("error")
-			_clear_selection_with_message(status_label.text)
+			_clear_selection_with_message(empty_message)
 		return
 
 	var result: Dictionary = _battle_service.prepare_attack(source, target, travel_duration, troop_count)
@@ -297,7 +291,7 @@ func _execute_attack(source_id: int, target_id: int, troop_count: int, is_player
 	if not keep_selection:
 		_selected_city_id = -1
 	if update_status_text:
-		status_label.text = result.get("message", "")
+		hud.update_status(String(result.get("message", "")))
 	if not result.get("success", false):
 		if update_status_text:
 			_audio_manager.play_sfx_by_id("error")
@@ -307,10 +301,10 @@ func _execute_attack(source_id: int, target_id: int, troop_count: int, is_player
 	_launch_marching_unit(source_id, target_id, int(result["owner"]), int(result["count"]), "attack", is_player_action)
 	if update_status_text:
 		if not is_player_action:
-			status_label.text = "%s 行动：%s" % [PrototypeCityOwnerRef.get_owner_name(source.owner), status_label.text]
-			hint_label.text = "有电脑势力已经出兵，注意观察道路上的行军单位。"
+			hud.update_status("%s 行动：%s" % [PrototypeCityOwnerRef.get_owner_name(source.owner), String(result.get("message", ""))])
+			hud.update_hint("有电脑势力已经出兵，注意观察道路上的行军单位。")
 		else:
-			hint_label.text = "部队已经出发。你可以继续选择其他城市。"
+			hud.update_hint("部队已经出发。你可以继续选择其他城市。")
 		_audio_manager.play_sfx_by_id("attack")
 	_refresh_view()
 
@@ -342,13 +336,13 @@ func _run_enemy_turn() -> void:
 			"target_name": _cities[target_id].name,
 			"action": ensure_result.get("action", "")
 		})
-		status_label.text = "%s 已部署持续路线：%s -> %s。" % [
+		hud.update_status("%s 已部署持续路线：%s -> %s。" % [
 			PrototypeCityOwnerRef.get_owner_name(owner_id),
 			_cities[source_id].name,
 			_cities[target_id].name
-		]
-		hint_label.text = "电脑势力现在和你共用同一套持续出兵规则。"
-	_refresh_view()
+		])
+		hud.update_hint("电脑势力现在和你共用同一套持续出兵规则。")
+		_refresh_view()
 
 
 ## 把当前城市状态和按钮状态同步到界面。
@@ -360,11 +354,7 @@ func _refresh_view() -> void:
 		var city_view = _city_views.get(city.city_id)
 		if city_view != null:
 			city_view.sync_from_state(city, city.city_id == _selected_city_id, _camera_controller.world_to_screen(city.position))
-	var pause_suffix: String = " | 已暂停" if _manual_paused else ""
-	if get_viewport_rect().size.x <= NARROW_OVERLAY_BREAKPOINT:
-		ai_config_label.text = "%d方 | %s | %s%s" % [_player_count, _get_ai_difficulty_name(_ai_difficulty), _get_ai_style_name(_ai_style), pause_suffix]
-	else:
-		ai_config_label.text = "对局：%d 方 | %s | %s%s" % [_player_count, _get_ai_difficulty_name(_ai_difficulty), _get_ai_style_name(_ai_style), pause_suffix]
+	hud.update_ai_config(_player_count, _get_ai_difficulty_name(_ai_difficulty), _get_ai_style_name(_ai_style), _manual_paused)
 	pause_button.disabled = _game_over or not _game_started
 	_refresh_upgrade_buttons()
 	queue_redraw()
@@ -385,8 +375,8 @@ func _check_game_over() -> void:
 		"winner": winner,
 		"winner_name": PrototypeCityOwnerRef.get_owner_name(winner)
 	})
-	status_label.text = "%s 获胜。" % PrototypeCityOwnerRef.get_owner_name(winner)
-	hint_label.text = "点击下方“重新开始”，或在面板里直接再开一局。"
+	hud.update_status("%s 获胜。" % PrototypeCityOwnerRef.get_owner_name(winner))
+	hud.update_hint("点击下方“重新开始”，或在面板里直接再开一局。")
 	if winner == PrototypeCityOwnerRef.PLAYER:
 		_audio_manager.play_sfx_by_id("victory")
 	else:
@@ -427,8 +417,8 @@ func _handle_city_owner_changed(city_id: int, previous_owner: int, new_owner: in
 ## 主要逻辑：清空选中城市并刷新道路高亮。
 func _clear_selection_with_message(message: String) -> void:
 	_selected_city_id = -1
-	status_label.text = message
-	hint_label.text = "先点蓝色城市，再点目标城市；进攻要相邻，运兵可跨图。"
+	hud.update_status(message)
+	hud.update_hint("先点蓝色城市，再点目标城市；进攻要相邻，运兵可跨图。")
 	_refresh_view()
 
 
@@ -438,7 +428,7 @@ func _clear_selection_with_message(message: String) -> void:
 ## 主要逻辑：只有选中己方城市时才在城边显示升级入口；按钮文案直接展示升级成本，
 ## 并把整个面板钳制在屏幕内，避免贴边城市导致按钮飞出可视区域。
 func _refresh_upgrade_buttons() -> void:
-	if _selected_city_id == -1 or _game_over or not _game_started or order_dialog_layer.visible or _manual_paused:
+	if _selected_city_id == -1 or _game_over or not _game_started or order_dialog.visible or _manual_paused:
 		floating_upgrade_panel.visible = false
 		upgrade_level_button.disabled = true
 		upgrade_defense_button.disabled = true
@@ -509,197 +499,66 @@ func _execute_upgrade(city_id: int, upgrade_type: String, is_player_action: bool
 		"success": result.get("success", false),
 		"soldiers_after": city.soldiers
 	})
-	status_label.text = result.get("message", "")
+	hud.update_status(String(result.get("message", "")))
 	if bool(result.get("success", false)):
 		if is_player_action:
-			hint_label.text = "升级已完成。你可以继续升城，或点目标城市发起行动。"
+			hud.update_hint("升级已完成。你可以继续升城，或点目标城市发起行动。")
 		else:
-			hint_label.text = "%s 正在经营后方城市，准备下一轮行动。" % PrototypeCityOwnerRef.get_owner_name(city.owner)
+			hud.update_hint("%s 正在经营后方城市，准备下一轮行动。" % PrototypeCityOwnerRef.get_owner_name(city.owner))
 		_audio_manager.play_sfx_by_id("capture")
 	else:
 		if is_player_action:
-			hint_label.text = "升级会直接消耗城内士兵，升完后本城会暂时更空。"
+			hud.update_hint("升级会直接消耗城内士兵，升完后本城会暂时更空。")
 		_audio_manager.play_sfx_by_id("error")
 	_refresh_view()
 
 
-## 打开玩家出兵数量对话框。
+## 处理出兵弹窗确认回调，并执行对应的下单逻辑。
 ##
-## 调用场景：玩家先选源城市，再点一个目标城市之后。
-## 主要逻辑：根据目标归属决定当前是在运兵还是进攻，并显示推荐兵力、目标防御/产能信息、快捷按钮和确认入口。
-func _refresh_order_dialog() -> void:
-	if _pending_order.is_empty():
-		return
-	var max_count: int = _get_current_order_max_count()
-	_pending_order_count = clamp(_pending_order_count, 1, max_count)
-	var source = _cities[int(_pending_order["source_id"])]
-	var target = _cities[int(_pending_order["target_id"])]
-	order_dialog_context_label.text = "%s -> %s，当前可派 %d 人。点空白可取消选城。" % [source.name, target.name, max_count]
-	order_dialog_count_label.text = str(_pending_order_count)
-	order_dialog_minus_10_button.disabled = _pending_order_count <= 1
-	order_dialog_minus_1_button.disabled = _pending_order_count <= 1
-	order_dialog_plus_1_button.disabled = _pending_order_count >= max_count
-	order_dialog_plus_10_button.disabled = _pending_order_count >= max_count
-	order_dialog_plus_20_button.disabled = _pending_order_count >= max_count
-	order_dialog_plus_50_button.disabled = _pending_order_count >= max_count
-	order_dialog_confirm_button.disabled = _pending_order_count <= 0
-	if _order_dialog_continuous_toggle != null:
-		_order_dialog_continuous_toggle.button_pressed = _pending_order_continuous_enabled
-		_order_dialog_continuous_toggle.text = "【开启自动出兵】源城每产 1 兵就自动派 1 人（忽略数量框）"
-	_refresh_order_forecast()
-
-
-## 读取当前待确认订单的实时最大可派兵力。
-##
-## 调用场景：出兵弹窗显示期间每次刷新、点击快捷按钮、最终确认下单前。
-## 主要逻辑：直接读取源城市当前兵力，而不是沿用打开弹窗时的旧值，避免产兵期间数据过期。
-func _get_current_order_max_count() -> int:
-	if _pending_order.is_empty():
-		return 1
-	var source = _cities[int(_pending_order["source_id"])]
-	return max(1, source.soldiers)
-
-
-## 根据当前数量选择刷新出兵弹窗中的到达预估信息。
-##
-## 调用场景：打开对话框后、点击任意数量快捷按钮后。
-## 主要逻辑：区分运兵和进攻两种模式，分别展示预计行军时间、目标防御/产能、预计到达守军、是否占领和出发后本城剩余兵力。
-func _refresh_order_forecast() -> void:
-	if _pending_order.is_empty():
-		return
-
-	var source = _cities[int(_pending_order["source_id"])]
-	var target = _cities[int(_pending_order["target_id"])]
-	var travel_duration: float = _calculate_march_duration(source.city_id, target.city_id)
-	if bool(_pending_order["is_transfer"]):
-		order_dialog_forecast_label.text = "预计 %.1f 秒后到达。出发后 %s 还剩 %d 人。" % [travel_duration, source.name, source.soldiers - _pending_order_count]
-		order_dialog_outcome_label.text = "预计结果：%s 会接收 %d 名援军。若途中失守，这批援军会在到达时立刻与当前守军重新交战。" % [target.name, _pending_order_count]
-		return
-
-	var preview: Dictionary = _battle_service.preview_attack_outcome(source, target, travel_duration, _pending_order_count)
-	order_dialog_forecast_label.text = "%s 预计 %.1f 秒后到达；目标防御 %d，产能 %.1f/秒，路上大约再产 %d 人，到达时等效防守约 %d。" % [
-		target.name,
-		travel_duration,
-		int(preview["predicted_defense_bonus"]),
-		target.production_rate,
-		int(preview["predicted_growth"]),
-		int(preview["predicted_effective_defenders"])
-	]
-
-	if bool(preview["predicted_capture"]):
-		order_dialog_outcome_label.text = "预计结果：可以占领 %s，城内预计留守 %d 人；%s 出发后还剩 %d 人。" % [
-			target.name,
-			int(preview["predicted_remaining"]),
-			source.name,
-			int(preview["source_soldiers_after_departure"])
-		]
-	else:
-		order_dialog_outcome_label.text = "预计结果：无法占领 %s，对方大约还剩 %d 人；%s 出发后还剩 %d 人。" % [
-			target.name,
-			int(preview["predicted_remaining"]),
-			source.name,
-			int(preview["source_soldiers_after_departure"])
-		]
-
-
-## 对当前出兵数量做增减调整。
-##
-## 调用场景：点击 `-10`、`+1`、`+50` 等快捷按钮时。
-## 主要逻辑：把数量限定在 1 到最大可派兵力之间，再刷新弹窗显示。
-func _adjust_order_count(delta: int) -> void:
-	if _pending_order.is_empty():
-		return
-	var max_count: int = _get_current_order_max_count()
-	_pending_order_count = clamp(_pending_order_count + delta, 1, max_count)
-	_refresh_order_dialog()
-	_audio_manager.play_sfx_by_id("select")
-
-
-## 把当前出兵数量设置为总兵力的一半。
-##
-## 调用场景：点击 `50%` 按钮时。
-## 主要逻辑：按最大可派兵力的一半向上取整，保证至少出 1 人。
-func _on_order_half_button_pressed() -> void:
-	if _pending_order.is_empty():
-		return
-	var max_count: int = _get_current_order_max_count()
-	_pending_order_count = max(1, int(ceil(float(max_count) * 0.5)))
-	_refresh_order_dialog()
-	_audio_manager.play_sfx_by_id("select")
-
-
-## 把当前出兵数量设置为全部可派兵力。
-##
-## 调用场景：点击 `100%` 按钮时。
-## 主要逻辑：直接采用最大可派兵力，适合全军压上或整队运兵。
-func _on_order_full_button_pressed() -> void:
-	if _pending_order.is_empty():
-		return
-	_pending_order_count = _get_current_order_max_count()
-	_refresh_order_dialog()
-	_audio_manager.play_sfx_by_id("select")
-
-
-## 把当前出兵数量设置为系统推荐值。
-##
-## 调用场景：点击 `推荐` 按钮时。
-## 主要逻辑：恢复到打开弹窗时计算出的推荐兵力，方便快速下单。
-func _on_order_recommend_button_pressed() -> void:
-	if _pending_order.is_empty():
-		return
-	_pending_order_count = int(_pending_order["recommended_count"])
-	_refresh_order_dialog()
-	_audio_manager.play_sfx_by_id("select")
-
-
-## 把当前出兵数量设置为“尽量多出，但源城市留 1 人”。
-##
-## 调用场景：点击 `留1人` 按钮时。
-## 主要逻辑：如果源城兵力大于 1，则设为 `最大值 - 1`，否则仍保持最小合法值 1。
-func _on_order_keep_one_button_pressed() -> void:
-	if _pending_order.is_empty():
-		return
-	var max_count: int = _get_current_order_max_count()
-	_pending_order_count = max(1, max_count - 1)
-	_refresh_order_dialog()
-	_audio_manager.play_sfx_by_id("select")
-
-
-## 取消当前出兵数量弹窗。
-##
-## 调用场景：点击出兵弹窗中的取消按钮时。
-## 主要逻辑：关闭弹窗但保留源城市选中，让玩家可以重新点别的目标或再次打开弹窗。
-func _on_order_confirm_button_pressed() -> void:
-	if _pending_order.is_empty():
-		return
-	var source_id: int = int(_pending_order["source_id"])
-	var target_id: int = int(_pending_order["target_id"])
-	var is_transfer: bool = bool(_pending_order["is_transfer"])
-	var troop_count: int = _pending_order_count
-	var enable_continuous_order: bool = _pending_order_continuous_enabled
-	order_dialog_layer.visible = false
-	_pending_order.clear()
-	_pending_order_continuous_enabled = false
+## 调用场景：OrderDialogController 发出 `order_confirmed` 信号时。
+## 主要逻辑：根据 continuous 开关决定“注册持续任务”还是“执行一次性出兵”；弹窗本体由 controller 负责关闭。
+func _on_order_dialog_confirmed(source_id: int, target_id: int, count: int, continuous: bool) -> void:
+	var is_transfer: bool = _cities[source_id].owner == _cities[target_id].owner
 	_log_game_debug("order_dialog_confirmed", {
 		"source_id": source_id,
 		"source_name": _cities[source_id].name,
 		"target_id": target_id,
 		"target_name": _cities[target_id].name,
 		"is_transfer": is_transfer,
-		"troop_count": troop_count,
-		"enable_continuous_order": enable_continuous_order
+		"troop_count": count,
+		"enable_continuous_order": continuous
 	})
-	if enable_continuous_order:
+	if continuous:
 		_register_continuous_order(source_id, target_id)
-		status_label.text = "已注册持续出兵任务，后续仅按产兵触发自动派 1 人。"
-		hint_label.text = "数量框只影响一次性出兵；持续出兵不会读取该数值。"
+		hud.update_status("已注册持续出兵任务，后续仅按产兵触发自动派 1 人。")
+		hud.update_hint("数量框只影响一次性出兵；持续出兵不会读取该数值。")
 		_refresh_view()
+		return
+
+	_remove_continuous_order(source_id, target_id)
+	if is_transfer:
+		_execute_transfer(source_id, target_id, count)
 	else:
-		_remove_continuous_order(source_id, target_id)
-		if is_transfer:
-			_execute_transfer(source_id, target_id, troop_count)
-		else:
-			_execute_attack(source_id, target_id, troop_count, true)
+		_execute_attack(source_id, target_id, count, true)
+
+
+## 处理出兵弹窗取消回调。
+##
+## 调用场景：OrderDialogController 发出 `order_cancelled` 信号时。
+## 主要逻辑：保持当前选中源城不变，仅更新提示与视图。
+func _on_order_dialog_cancelled() -> void:
+	_log_game_debug("order_dialog_cancelled", {})
+	hud.update_status("已取消本次出兵确认。你仍可以重新选择一个目标城市。")
+	hud.update_hint("点己方城市可跨图运兵，点敌方或中立城市需要道路相邻。")
+	_refresh_view()
+
+
+## 处理出兵弹窗“持续出兵开关”变化事件。
+##
+## 调用场景：玩家在 OrderDialogController 内切换开关时。
+## 主要逻辑：当前主流程以 controller 的 `order_confirmed(..., continuous)` 为最终输入，这里只记录日志便于排查。
+func _on_order_dialog_continuous_toggle_changed(enabled: bool) -> void:
+	_log_game_debug("order_dialog_continuous_toggle_changed", {"enabled": enabled})
 
 
 ## 创建一条可视化行军单位并记录其发射顺序。
@@ -840,8 +699,8 @@ func _resolve_single_marching_collision(left_index: int, right_index: int) -> vo
 			"right_count": int(right_unit["count"]),
 			"both_destroyed": true
 		})
-		status_label.text = "%s 与 %s 在路上遭遇，双方 %d 人同归于尽。" % [left_owner_name, right_owner_name, int(left_unit["count"])]
-		hint_label.text = "道路上的敌对部队会先互相抵消，剩余兵力才会继续前进。"
+		hud.update_status("%s 与 %s 在路上遭遇，双方 %d 人同归于尽。" % [left_owner_name, right_owner_name, int(left_unit["count"])])
+		hud.update_hint("道路上的敌对部队会先互相抵消，剩余兵力才会继续前进。")
 		_marching_units.remove_at(right_index)
 		_marching_units.remove_at(left_index)
 		_audio_manager.play_sfx_by_id("attack")
@@ -862,13 +721,13 @@ func _resolve_single_marching_collision(left_index: int, right_index: int) -> vo
 		"winner_owner": winner_owner,
 		"remaining_count": remaining_count
 	})
-	status_label.text = "%s 与 %s 在路上交战，%s 剩 %d 人继续前进。" % [
+	hud.update_status("%s 与 %s 在路上交战，%s 剩 %d 人继续前进。" % [
 		left_owner_name,
 		right_owner_name,
 		PrototypeCityOwnerRef.get_owner_name(winner_owner),
 		remaining_count
-	]
-	hint_label.text = "道路上的敌对部队会先互相抵消，剩余兵力才会继续前进。"
+	])
+	hud.update_hint("道路上的敌对部队会先互相抵消，剩余兵力才会继续前进。")
 	_marching_units.remove_at(right_index if surviving_index == left_index else left_index)
 	_audio_manager.play_sfx_by_id("attack")
 
@@ -903,29 +762,29 @@ func _resolve_marching_unit_arrival(unit: Dictionary) -> void:
 			)
 		else:
 			result = _battle_service.resolve_transfer_arrival(target, int(unit["owner"]), int(unit["count"]))
-		_log_game_debug("march_arrival_transfer", {
-			"target_id": int(unit["target_id"]),
-			"target_name": target.name,
-			"owner": int(unit["owner"]),
-			"count": int(unit["count"]),
-			"captured": result.get("captured", false),
-			"retook_after_loss": result.get("retook_after_loss", false),
-			"received_count": result.get("received_count", 0),
-			"forwarded_count": result.get("forwarded_count", 0),
-			"overflow_count": result.get("overflow_count", 0),
-			"target_owner_after": target.owner,
-			"target_soldiers_after": target.soldiers
-		})
-		status_label.text = result.get("message", "")
-		if result.get("retook_after_loss", false):
-			hint_label.text = "目标城曾在途中失守，但迟到援军到达后已经按实时兵力重新交战。"
-			if result.get("captured", false):
-				_audio_manager.play_sfx_by_id("capture")
+			_log_game_debug("march_arrival_transfer", {
+				"target_id": int(unit["target_id"]),
+				"target_name": target.name,
+				"owner": int(unit["owner"]),
+				"count": int(unit["count"]),
+				"captured": result.get("captured", false),
+				"retook_after_loss": result.get("retook_after_loss", false),
+				"received_count": result.get("received_count", 0),
+				"forwarded_count": result.get("forwarded_count", 0),
+				"overflow_count": result.get("overflow_count", 0),
+				"target_owner_after": target.owner,
+				"target_soldiers_after": target.soldiers
+			})
+			hud.update_status(String(result.get("message", "")))
+			if result.get("retook_after_loss", false):
+				hud.update_hint("目标城曾在途中失守，但迟到援军到达后已经按实时兵力重新交战。")
+				if result.get("captured", false):
+					_audio_manager.play_sfx_by_id("capture")
+				else:
+					_audio_manager.play_sfx_by_id("attack")
 			else:
-				_audio_manager.play_sfx_by_id("attack")
-		else:
-			hint_label.text = "援军已经到达。继续观察道路上的行军，或再次下达命令。"
-			_audio_manager.play_sfx_by_id("transfer")
+				hud.update_hint("援军已经到达。继续观察道路上的行军，或再次下达命令。")
+				_audio_manager.play_sfx_by_id("transfer")
 	else:
 		result = _battle_service.resolve_attack_arrival(target, int(unit["owner"]), int(unit["count"]))
 		_log_game_debug("march_arrival_attack", {
@@ -939,9 +798,9 @@ func _resolve_marching_unit_arrival(unit: Dictionary) -> void:
 			"target_soldiers_after": target.soldiers
 		})
 		if bool(unit["is_player_action"]):
-			status_label.text = result.get("message", "")
+			hud.update_status(String(result.get("message", "")))
 		else:
-			status_label.text = "%s 到达：%s" % [PrototypeCityOwnerRef.get_owner_name(int(unit["owner"])), result.get("message", "")]
+			hud.update_status("%s 到达：%s" % [PrototypeCityOwnerRef.get_owner_name(int(unit["owner"])), String(result.get("message", ""))])
 
 		if result.get("captured", false):
 			_audio_manager.play_sfx_by_id("capture")
@@ -951,9 +810,9 @@ func _resolve_marching_unit_arrival(unit: Dictionary) -> void:
 			_audio_manager.play_sfx_by_id("attack")
 
 		if bool(unit["is_player_action"]):
-			hint_label.text = "行军抵达后才会真正结算战斗。"
+			hud.update_hint("行军抵达后才会真正结算战斗。")
 		else:
-			hint_label.text = "有电脑势力行军已经抵达，注意下一波道路动向。"
+			hud.update_hint("有电脑势力行军已经抵达，注意下一波道路动向。")
 
 	if owner_before_arrival != target.owner:
 		_handle_city_owner_changed(target.city_id, owner_before_arrival, target.owner)
@@ -1145,8 +1004,8 @@ func _show_play_state() -> void:
 	_overlay_mode = "play"
 	overlay_layer.visible = false
 	_log_game_debug("play_state_entered", {})
-	status_label.text = "先点蓝色城市，再点目标城市，直接创建持续出兵路线。"
-	hint_label.text = "同一路线再次点击可关闭；一个源城有多条路线时会轮流出兵。"
+	hud.update_status("先点蓝色城市，再点目标城市，直接创建持续出兵路线。")
+	hud.update_hint("同一路线再次点击可关闭；一个源城有多条路线时会轮流出兵。")
 	# Web 平台在用户首次交互后初始化音频（绕过 autoplay 限制）
 	_audio_manager.initialize_audio()
 	_audio_manager.play_sfx_by_id("select")
@@ -1187,8 +1046,8 @@ func _register_continuous_order(source_id: int, target_id: int) -> void:
 		"target_name": _cities[target_id].name,
 		"action": ensure_result.get("action", "")
 	})
-	status_label.text = "已开启持续出兵：%s -> %s，源城每产 1 兵就自动派 1 人。" % [_cities[source_id].name, _cities[target_id].name]
-	hint_label.text = "持续出兵不使用数量框；数量框只影响本次一次性出兵。"
+	hud.update_status("已开启持续出兵：%s -> %s，源城每产 1 兵就自动派 1 人。" % [_cities[source_id].name, _cities[target_id].name])
+	hud.update_hint("持续出兵不使用数量框；数量框只影响本次一次性出兵。")
 	_refresh_continuous_status_label()
 	_refresh_view()
 
@@ -1271,9 +1130,7 @@ func _try_execute_continuous_order(dispatch_result: Dictionary) -> bool:
 		"source_owner": source.owner,
 		"target_owner": target.owner
 	})
-	_continuous_dispatch_count_in_window += 1
-	_continuous_dispatch_soldiers_in_window += troop_count
-	_continuous_dispatch_counts_by_source_in_window[source_id] = int(_continuous_dispatch_counts_by_source_in_window.get(source_id, 0)) + 1
+	_telemetry.record_continuous_dispatch(source_id, troop_count)
 	if is_transfer:
 		_execute_transfer(source_id, target_id, troop_count, true, false)
 	else:
@@ -1322,8 +1179,8 @@ func _pause_gameplay() -> void:
 	if _game_over or not _game_started:
 		return
 	_manual_paused = true
-	status_label.text = "游戏已暂停。"
-	hint_label.text = "点击继续即可恢复战局。"
+	hud.update_status("游戏已暂停。")
+	hud.update_hint("点击继续即可恢复战局。")
 	_refresh_view()
 
 
@@ -1333,8 +1190,8 @@ func _pause_gameplay() -> void:
 ## 主要逻辑：隐藏遮罩并恢复主循环，让行军、产兵和 AI 从当前状态继续。
 func _resume_gameplay() -> void:
 	_manual_paused = false
-	status_label.text = "战局已恢复。"
-	hint_label.text = "继续下达命令，或再次点击暂停查看局势。"
+	hud.update_status("战局已恢复。")
+	hud.update_hint("继续下达命令，或再次点击暂停查看局势。")
 	_refresh_view()
 
 

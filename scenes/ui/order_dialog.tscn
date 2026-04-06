@@ -39,6 +39,7 @@ outline_size = 0
 outline_color = Color(0, 0, 0, 0)
 
 [node name="OrderDialog" type="CanvasLayer"]
+script = ExtResource("4_order")
 
 [node name="Shade" type="ColorRect" parent="."]
 anchors_preset = 15
@@ -59,7 +60,6 @@ offset_right = 0.0
 offset_bottom = 0.0
 custom_minimum_size = Vector2(875, 910)
 theme_override_styles/panel = SubResource("StyleBox_dialog_panel")
-script = ExtResource("4_order")
 
 [node name="Margin" type="MarginContainer" parent="Panel"]
 theme_override_constants/margin_left = 42

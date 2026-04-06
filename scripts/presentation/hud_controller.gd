@@ -1,14 +1,11 @@
 class_name HudController
 extends PanelContainer
 
-## HUD Controller - Manages top panel text content.
-## This script should be attached to a PanelContainer node with this structure:
-##   PanelContainer
-##   ├── Margin (MarginContainer)
-##   │   └── InfoColumn (VBoxContainer)
-##   │       ├── StatusLabel (Label)
-##   │       ├── HintLabel (Label)
-##   │       └── AiConfigLabel (Label)
+## 顶部 HUD 控制器（TopPanel）。
+##
+## 调用场景：主场景启动后，负责顶部状态条的文本、布局与“自动出兵状态条”的展示。
+## 主要逻辑：对外暴露稳定 API（update_status/update_hint/update_ai_config/update_continuous_status），
+## 内部自行处理窄屏布局，避免主控制器通过深路径访问 Label/Container。
 
 signal continuous_dispatch_stats_updated(stats: Dictionary)
 
@@ -23,6 +20,8 @@ var _continuous_status_label: Label = null
 
 func _ready() -> void:
 	_setup_continuous_status_label()
+	get_window().size_changed.connect(_on_window_size_changed)
+	_apply_responsive_layout()
 
 
 func _setup_continuous_status_label() -> void:
@@ -70,3 +69,68 @@ func _refresh_continuous_status_label(active_order_count: int, last_second_count
 		last_second_count,
 		last_second_soldiers
 	]
+
+
+## 返回顶部面板的底边偏移（用于相机安全区计算）。
+##
+## 调用场景：CameraController 计算开局镜头偏移时。
+## 主要逻辑：直接返回当前 PanelContainer 的 offset_bottom。
+func get_panel_bottom() -> float:
+	return offset_bottom
+
+
+func _on_window_size_changed() -> void:
+	_apply_responsive_layout()
+
+
+## 对外暴露的响应式布局刷新入口。
+##
+## 调用场景：主场景统一处理窗口尺寸变化时（可选），或需要强制刷新 HUD 布局时。
+## 主要逻辑：转调内部 `_apply_responsive_layout()`，保持 HUD 布局只在 controller 内实现。
+func apply_responsive_layout() -> void:
+	_apply_responsive_layout()
+
+
+## 按当前窗口宽度应用顶部 HUD 的响应式布局。
+##
+## 调用场景：启动时、窗口尺寸变化时。
+## 主要逻辑：窄屏时尽量贴边并隐藏次要文案；桌面端保留更舒展的边距与字号。
+func _apply_responsive_layout() -> void:
+	var viewport_size: Vector2 = get_viewport_rect().size
+	var is_narrow_layout: bool = viewport_size.x <= 520.0
+
+	if is_narrow_layout:
+		offset_left = 2.0
+		offset_top = 2.0
+		offset_right = -2.0
+		offset_bottom = 44.0
+		margin.add_theme_constant_override("margin_left", 6)
+		margin.add_theme_constant_override("margin_top", 3)
+		margin.add_theme_constant_override("margin_right", 6)
+		margin.add_theme_constant_override("margin_bottom", 3)
+		info_column.add_theme_constant_override("separation", 0)
+		status_label.add_theme_font_size_override("font_size", 13)
+		hint_label.add_theme_font_size_override("font_size", 12)
+		ai_config_label.add_theme_font_size_override("font_size", 12)
+		status_label.visible = false
+		hint_label.visible = false
+		if _continuous_status_label != null:
+			_continuous_status_label.visible = false
+		return
+
+	offset_left = 8.0
+	offset_top = 8.0
+	offset_right = -8.0
+	offset_bottom = 72.0
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_top", 6)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_bottom", 6)
+	info_column.add_theme_constant_override("separation", 2)
+	status_label.add_theme_font_size_override("font_size", 16)
+	hint_label.add_theme_font_size_override("font_size", 14)
+	ai_config_label.add_theme_font_size_override("font_size", 14)
+	status_label.visible = true
+	hint_label.visible = false
+	if _continuous_status_label != null:
+		_continuous_status_label.visible = true

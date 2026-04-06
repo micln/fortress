@@ -7,6 +7,8 @@
 [ext_resource type="Texture2D" path="res://assets/icons/restart.svg" id="5_restart"]
 [ext_resource type="Texture2D" path="res://assets/icons/home.svg" id="6_home"]
 [ext_resource type="PackedScene" path="res://scenes/ui/map_selection.tscn" id="7_map_select"]
+[ext_resource type="PackedScene" path="res://scenes/ui/top_panel.tscn" id="8_top_panel"]
+[ext_resource type="PackedScene" path="res://scenes/ui/order_dialog.tscn" id="9_order_dialog"]
 
 [sub_resource type="LabelSettings" id="LabelSettings_status"]
 font = ExtResource("3_font")
@@ -140,38 +142,7 @@ volume_db = -10.0
 
 [node name="UILayer" type="CanvasLayer" parent="."]
 
-[node name="TopPanel" type="PanelContainer" parent="UILayer"]
-anchor_right = 1.0
-offset_left = 24.0
-offset_top = 16.0
-offset_right = -24.0
-offset_bottom = 190.0
-mouse_filter = 2
-theme_override_styles/panel = SubResource("StyleBox_hud_panel")
-
-[node name="Margin" type="MarginContainer" parent="UILayer/TopPanel"]
-theme_override_constants/margin_left = 18
-theme_override_constants/margin_top = 14
-theme_override_constants/margin_right = 18
-theme_override_constants/margin_bottom = 14
-
-[node name="InfoColumn" type="VBoxContainer" parent="UILayer/TopPanel/Margin"]
-theme_override_constants/separation = 4
-
-[node name="StatusLabel" type="Label" parent="UILayer/TopPanel/Margin/InfoColumn"]
-text = "选择己方城市，然后点击相邻目标城市发起进攻。"
-autowrap_mode = 3
-label_settings = SubResource("LabelSettings_status")
-
-[node name="HintLabel" type="Label" parent="UILayer/TopPanel/Margin/InfoColumn"]
-text = "蓝方是你，红方是敌人，灰色中立城市不产兵。"
-autowrap_mode = 3
-label_settings = SubResource("LabelSettings_hint")
-
-[node name="AiConfigLabel" type="Label" parent="UILayer/TopPanel/Margin/InfoColumn"]
-text = "电脑：1 家 | 普通 | 进攻型"
-autowrap_mode = 3
-label_settings = SubResource("LabelSettings_hint")
+[node name="TopPanel" parent="UILayer" instance=ExtResource("8_top_panel")]
 
 [node name="LeftBottomButtons" type="HBoxContainer" parent="UILayer"]
 anchor_top = 1.0
@@ -242,6 +213,7 @@ custom_minimum_size = Vector2(91, 53)
 [node name="MapSelectionPanel" parent="MapSelection" instance=ExtResource("7_map_select")]
 
 [node name="Overlay" type="CanvasLayer" parent="."]
+visible = false
 
 [node name="Shade" type="ColorRect" parent="Overlay"]
 anchor_right = 1.0
@@ -336,145 +308,8 @@ text = "开始游戏"
 theme_override_font_sizes/font_size = 28
 custom_minimum_size = Vector2(0, 64)
 
-[node name="OrderDialog" type="CanvasLayer" parent="."]
+[node name="OrderDialog" parent="." instance=ExtResource("9_order_dialog")]
 visible = false
-
-[node name="Shade" type="ColorRect" parent="OrderDialog"]
-anchor_right = 1.0
-anchor_bottom = 1.0
-color = Color(0.0117647, 0.0156863, 0.027451, 0.68)
-
-[node name="Panel" type="PanelContainer" parent="OrderDialog"]
-anchor_left = 0.1
-anchor_top = 0.15
-anchor_right = 0.9
-anchor_bottom = 0.88
-offset_left = 0.0
-offset_top = 0.0
-offset_right = 0.0
-offset_bottom = 0.0
-custom_minimum_size = Vector2(875, 910)
-theme_override_styles/panel = SubResource("StyleBox_dialog_panel")
-
-[node name="Margin" type="MarginContainer" parent="OrderDialog/Panel"]
-theme_override_constants/margin_left = 42
-theme_override_constants/margin_top = 42
-theme_override_constants/margin_right = 42
-theme_override_constants/margin_bottom = 42
-
-[node name="Column" type="VBoxContainer" parent="OrderDialog/Panel/Margin"]
-theme_override_constants/separation = 28
-
-[node name="OrderScroll" type="ScrollContainer" parent="OrderDialog/Panel/Margin/Column"]
-size_flags_vertical = 3
-horizontal_scroll_mode = 0
-
-[node name="OrderContent" type="VBoxContainer" parent="OrderDialog/Panel/Margin/Column/OrderScroll"]
-size_flags_horizontal = 3
-theme_override_constants/separation = 16
-
-[node name="TitleLabel" type="Label" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent"]
-text = "出兵数量"
-horizontal_alignment = 1
-label_settings = SubResource("LabelSettings_overlay_title")
-
-[node name="ContextLabel" type="Label" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent"]
-text = "从 A 到 B"
-autowrap_mode = 3
-label_settings = SubResource("LabelSettings_overlay_body")
-
-[node name="RecommendedLabel" type="Label" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent"]
-text = "推荐兵力"
-autowrap_mode = 3
-label_settings = SubResource("LabelSettings_hint")
-
-[node name="ForecastLabel" type="Label" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent"]
-text = "预计到达信息"
-autowrap_mode = 3
-label_settings = SubResource("LabelSettings_hint")
-
-[node name="OutcomeLabel" type="Label" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent"]
-text = "预计结果"
-autowrap_mode = 3
-label_settings = SubResource("LabelSettings_overlay_body")
-
-[node name="CountLabel" type="Label" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent"]
-text = "0"
-horizontal_alignment = 1
-label_settings = SubResource("LabelSettings_overlay_title")
-
-[node name="AdjustRow" type="HBoxContainer" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent"]
-alignment = 1
-theme_override_constants/separation = 25
-
-[node name="Minus10Button" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow"]
-text = "-10"
-theme_override_font_sizes/font_size = 42
-custom_minimum_size = Vector2(193, 91)
-
-[node name="Minus1Button" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow"]
-text = "-1"
-theme_override_font_sizes/font_size = 42
-custom_minimum_size = Vector2(175, 91)
-
-[node name="Plus1Button" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow"]
-text = "+1"
-theme_override_font_sizes/font_size = 42
-custom_minimum_size = Vector2(175, 91)
-
-[node name="Plus10Button" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow"]
-text = "+10"
-theme_override_font_sizes/font_size = 42
-custom_minimum_size = Vector2(193, 91)
-
-[node name="QuickGrid" type="GridContainer" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent"]
-columns = 3
-theme_override_constants/h_separation = 25
-theme_override_constants/v_separation = 25
-
-[node name="Plus20Button" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
-text = "+20"
-theme_override_font_sizes/font_size = 42
-custom_minimum_size = Vector2(0, 91)
-
-[node name="Plus50Button" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
-text = "+50"
-theme_override_font_sizes/font_size = 42
-custom_minimum_size = Vector2(0, 91)
-
-[node name="HalfButton" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
-text = "50%"
-theme_override_font_sizes/font_size = 42
-custom_minimum_size = Vector2(0, 91)
-
-[node name="FullButton" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
-text = "100%"
-theme_override_font_sizes/font_size = 42
-custom_minimum_size = Vector2(0, 91)
-
-[node name="RecommendButton" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
-text = "推荐"
-theme_override_font_sizes/font_size = 42
-custom_minimum_size = Vector2(0, 91)
-
-[node name="MaxKeepOneButton" type="Button" parent="OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid"]
-text = "留1人"
-theme_override_font_sizes/font_size = 42
-custom_minimum_size = Vector2(0, 91)
-
-[node name="ActionRow" type="HBoxContainer" parent="OrderDialog/Panel/Margin/Column"]
-alignment = 1
-theme_override_constants/separation = 16
-
-[node name="CancelButton" type="Button" parent="OrderDialog/Panel/Margin/Column/ActionRow"]
-text = "取消"
-theme_override_font_sizes/font_size = 46
-custom_minimum_size = Vector2(315, 102)
-
-[node name="ConfirmButton" type="Button" parent="OrderDialog/Panel/Margin/Column/ActionRow"]
-text = "确认出兵"
-theme_override_font_sizes/font_size = 46
-custom_minimum_size = Vector2(385, 102)
 
 [node name="CityTemplate" type="Area2D" parent="."]
 visible = false

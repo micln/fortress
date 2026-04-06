@@ -14,6 +14,7 @@ const PrototypeMapRegistryRef = preload("res://scripts/application/prototype_map
 const GameStateManagerRef = preload("res://scripts/presentation/game_state_manager.gd")
 const MarchControllerRef = preload("res://scripts/presentation/march_controller.gd")
 const PrototypeMainInputHandlerRef = preload("res://scripts/presentation/prototype_main_input_handler.gd")
+const PrototypeMatchTelemetryRef = preload("res://scripts/presentation/prototype_match_telemetry.gd")
 const UI_FONT: Font = preload("res://assets/fonts/NotoSansSC-Regular.otf")
 const MARCH_SPEED: float = 180.0
 const UNIT_RADIUS: float = 16.0
@@ -23,8 +24,6 @@ const SOLDIER_VISUAL_LANE_OFFSET: float = 21.0
 const MAX_VISUAL_SOLDIERS_PER_UNIT: int = 18
 const MARCH_COLLISION_DISTANCE: float = 34.0
 const NARROW_OVERLAY_BREAKPOINT: float = 520.0
-const INPUT_DEBUG_LOG_ENABLED: bool = true
-const GAME_DEBUG_LOG_ENABLED: bool = true
 const AI_DIFFICULTY_ITEMS: Array = [
 	{"id": PrototypeEnemyAiServiceRef.DIFFICULTY_EASY, "name": "简单"},
 	{"id": PrototypeEnemyAiServiceRef.DIFFICULTY_NORMAL, "name": "普通"},
@@ -53,20 +52,11 @@ var _camera_controller = CameraControllerRef.new()
 var _game_state_manager = GameStateManagerRef.new()
 var _march_controller = MarchControllerRef.new()
 var _input_handler = PrototypeMainInputHandlerRef.new()
+var _telemetry = PrototypeMatchTelemetryRef.new()
 var _cities: Array = []
 var _city_views: Dictionary = {}
 var _marching_units: Array = []
 var _selected_city_id: int = -1
-var _pending_order: Dictionary = {}
-var _pending_order_count: int = 0
-var _pending_order_continuous_enabled: bool = false
-var _continuous_dispatch_count_in_window: int = 0
-var _continuous_dispatch_soldiers_in_window: int = 0
-var _continuous_dispatch_window_elapsed: float = 0.0
-var _continuous_dispatch_last_second_count: int = 0
-var _continuous_dispatch_last_second_soldiers: int = 0
-var _continuous_dispatch_counts_by_source_in_window: Dictionary = {}
-var _continuous_dispatch_counts_by_source_last_second: Dictionary = {}
 var _next_march_order: int = 0
 var _production_elapsed: float = 0.0
 var _enemy_elapsed: float = 0.0
@@ -95,7 +85,7 @@ func _input_is_manual_paused() -> bool:
 
 ## 输入模块状态读取：出兵弹窗是否可见。
 func _input_is_order_dialog_visible() -> bool:
-	return order_dialog_layer.visible
+	return order_dialog.visible
 
 ## 输入模块状态读取：Overlay 是否可见。
 func _input_is_overlay_visible() -> bool:
@@ -134,12 +124,7 @@ func _consume_input() -> void:
 @onready var sfx_player: AudioStreamPlayer = $SfxPlayer
 @onready var city_template = $CityTemplate
 @onready var ui_layer: CanvasLayer = $UILayer
-@onready var top_panel: PanelContainer = $UILayer/TopPanel
-@onready var top_margin: MarginContainer = $UILayer/TopPanel/Margin
-@onready var top_info_column: VBoxContainer = $UILayer/TopPanel/Margin/InfoColumn
-@onready var status_label: Label = $UILayer/TopPanel/Margin/InfoColumn/StatusLabel
-@onready var hint_label: Label = $UILayer/TopPanel/Margin/InfoColumn/HintLabel
-@onready var ai_config_label: Label = $UILayer/TopPanel/Margin/InfoColumn/AiConfigLabel
+@onready var hud = $UILayer/TopPanel
 @onready var floating_upgrade_panel: PanelContainer = $UILayer/FloatingUpgradePanel
 @onready var upgrade_level_button: Button = $UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow/LevelButton
 @onready var upgrade_defense_button: Button = $UILayer/FloatingUpgradePanel/FloatingUpgradeMargin/FloatingUpgradeRow/DefenseButton
@@ -164,35 +149,7 @@ func _consume_input() -> void:
 @onready var overlay_action_button: Button = $Overlay/OverlayPanel/OverlayMargin/OverlayColumn/OverlayActionButton
 @onready var map_selection_layer: CanvasLayer = $MapSelection
 @onready var map_selection_panel = $MapSelection/MapSelectionPanel
-@onready var order_dialog_layer: CanvasLayer = $OrderDialog
-@onready var order_dialog_panel: PanelContainer = $OrderDialog/Panel
-@onready var order_dialog_margin: MarginContainer = $OrderDialog/Panel/Margin
-@onready var order_dialog_column: VBoxContainer = $OrderDialog/Panel/Margin/Column
-@onready var order_dialog_scroll: ScrollContainer = $OrderDialog/Panel/Margin/Column/OrderScroll
-@onready var order_dialog_title_label: Label = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/TitleLabel
-@onready var order_dialog_context_label: Label = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/ContextLabel
-@onready var order_dialog_recommended_label: Label = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/RecommendedLabel
-@onready var order_dialog_forecast_label: Label = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/ForecastLabel
-@onready var order_dialog_outcome_label: Label = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/OutcomeLabel
-@onready var order_dialog_count_label: Label = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/CountLabel
-@onready var order_dialog_content: VBoxContainer = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent
-@onready var order_dialog_adjust_row: HBoxContainer = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow
-@onready var order_dialog_minus_10_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow/Minus10Button
-@onready var order_dialog_minus_1_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow/Minus1Button
-@onready var order_dialog_plus_1_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow/Plus1Button
-@onready var order_dialog_plus_10_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/AdjustRow/Plus10Button
-@onready var order_dialog_quick_grid: GridContainer = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid
-@onready var order_dialog_plus_20_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid/Plus20Button
-@onready var order_dialog_plus_50_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid/Plus50Button
-@onready var order_dialog_half_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid/HalfButton
-@onready var order_dialog_full_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid/FullButton
-@onready var order_dialog_recommend_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid/RecommendButton
-@onready var order_dialog_keep_one_button: Button = $OrderDialog/Panel/Margin/Column/OrderScroll/OrderContent/QuickGrid/MaxKeepOneButton
-@onready var order_dialog_action_row: HBoxContainer = $OrderDialog/Panel/Margin/Column/ActionRow
-@onready var order_dialog_cancel_button: Button = $OrderDialog/Panel/Margin/Column/ActionRow/CancelButton
-@onready var order_dialog_confirm_button: Button = $OrderDialog/Panel/Margin/Column/ActionRow/ConfirmButton
-var _order_dialog_continuous_toggle: CheckButton
-var _continuous_status_label: Label
+@onready var order_dialog = $OrderDialog
 
 
 ## 初始化战局、音频和所有 UI 信号。
@@ -208,7 +165,7 @@ func _set_map_zoom(next_zoom: float, anchor_screen_position: Vector2) -> void:
 ## 调用场景：鼠标按下或触摸开始时。
 ## 主要逻辑：覆盖层、出兵弹窗和 HUD 区域不允许触发拖拽，只在战场区记录拖拽候选。
 func _can_start_map_drag(pointer_position: Vector2) -> bool:
-	if _game_over or not _game_started or order_dialog_layer.visible or overlay_layer.visible:
+	if _game_over or not _game_started or order_dialog.visible or overlay_layer.visible:
 		return false
 	if left_bottom_buttons.get_global_rect().has_point(pointer_position):
 		return false
@@ -237,10 +194,10 @@ func _can_start_map_drag(pointer_position: Vector2) -> bool:
 ## 调用场景：新地图生成并实例化城市表现节点后。
 ## 主要逻辑：遍历所有城市，统一输出城市编号、名字、阵营、世界坐标和当前屏幕坐标，便于与手机点击日志对照。
 func _log_all_city_positions() -> void:
-	if not INPUT_DEBUG_LOG_ENABLED:
+	if not _telemetry.is_input_debug_enabled():
 		return
 	for city in _cities:
-		_log_input_debug("city_position", {
+		_telemetry.log_input_debug("city_position", {
 			"city_id": city.city_id,
 			"city_name": city.name,
 			"owner": city.owner,
@@ -254,9 +211,7 @@ func _log_all_city_positions() -> void:
 ## 调用场景：输入事件、选城事件、取消事件以及命中测试排查时。
 ## 主要逻辑：把来源标签和上下文字典格式化为单行日志，方便在浏览器 Console 中按关键字搜索与对照。
 func _log_input_debug(tag: String, payload: Dictionary = {}) -> void:
-	if not INPUT_DEBUG_LOG_ENABLED:
-		return
-	print("[input-debug] ", tag, " | ", JSON.stringify(payload))
+	_telemetry.log_input_debug(tag, payload)
 
 
 ## 统一输出关键玩法流程日志，便于排查出兵、持续任务和战斗结算问题。
@@ -264,9 +219,7 @@ func _log_input_debug(tag: String, payload: Dictionary = {}) -> void:
 ## 调用场景：关键动作发生时，例如选城、开单、注册持续任务、产兵、发兵、到达、占城和胜负结算。
 ## 主要逻辑：使用稳定的单行 JSON 结构打印，方便后续按标签过滤和复盘事件顺序。
 func _log_game_debug(tag: String, payload: Dictionary = {}) -> void:
-	if not GAME_DEBUG_LOG_ENABLED:
-		return
-	print("[game-debug] ", tag, " | ", JSON.stringify(payload))
+	_telemetry.log_game_debug(tag, payload)
 
 
 ## 展示开局说明面板，并暂停战局推进。
@@ -280,82 +233,17 @@ func _on_home_button_pressed() -> void:
 	map_selection_panel.show_panel()
 
 
-## 切换到正式对局状态并关闭说明遮罩。
-##
-## 调用场景：玩家看完说明准备开始，或结束后一键再开一局时。
-## 主要逻辑：隐藏说明层、更新顶部提示、启动背景音乐并恢复战局推进。
-func _setup_order_dialog_continuous_toggle() -> void:
-	_order_dialog_continuous_toggle = CheckButton.new()
-	_order_dialog_continuous_toggle.text = "【开启自动出兵】源城每产 1 兵就自动派 1 人（忽略数量框）"
-	_order_dialog_continuous_toggle.focus_mode = Control.FOCUS_NONE
-	_order_dialog_continuous_toggle.add_theme_font_size_override("font_size", 20)
-	_order_dialog_continuous_toggle.add_theme_color_override("font_color", Color("f6d365"))
-	_order_dialog_continuous_toggle.toggled.connect(_on_order_continuous_toggle_toggled)
-	order_dialog_content.add_child(_order_dialog_continuous_toggle)
-	order_dialog_content.move_child(_order_dialog_continuous_toggle, order_dialog_content.get_child_count() - 1)
-
-
-## 初始化顶部“自动出兵状态条”，用于持续显示当前持续出兵是否在工作。
-##
-## 调用场景：主场景 `_ready()` 初始化 HUD 时。
-## 主要逻辑：动态添加独立状态标签，避免被普通提示文案覆盖，持续展示路线数量与最近 1 秒的自动出兵统计。
-func _setup_continuous_status_label() -> void:
-	_continuous_status_label = Label.new()
-	_continuous_status_label.name = "ContinuousStatusLabel"
-	_continuous_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_continuous_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	_continuous_status_label.add_theme_font_size_override("font_size", 14)
-	_continuous_status_label.add_theme_color_override("font_color", Color("f6d365"))
-	top_info_column.add_child(_continuous_status_label)
-	_refresh_continuous_status_label()
-
-
-## 初始化右侧持续出兵 HUD，展示当前所有进行中的任务。
-##
-## 调用场景：主场景 `_ready()` 初始化 HUD 时。
-## 主要逻辑：在 `UILayer` 下动态创建右侧常驻面板，避免把任务列表混进临时遮罩或弹窗层。
-
-
-
 ## 刷新顶部“自动出兵状态条”文案，让玩家看见每秒是否真的在自动出兵。
 ##
 ## 调用场景：界面刷新、持续出兵注册/移除、每秒调度统计窗口滚动时。
 ## 主要逻辑：持续任务为空时显示关闭状态；不为空时显示路线数、最近 1 秒自动出兵次数与总兵量。
 func _refresh_continuous_status_label() -> void:
-	if _continuous_status_label == null:
-		return
 	var active_order_count: int = _order_dispatch_service.get_all_orders().size()
-	if active_order_count <= 0:
-		_continuous_status_label.text = "自动出兵：关闭"
-		return
-	_continuous_status_label.text = "自动出兵：%d 条路线 | 最近1秒 %d 次，共 %d 人" % [
+	hud.update_continuous_status(
 		active_order_count,
-		_continuous_dispatch_last_second_count,
-		_continuous_dispatch_last_second_soldiers
-	]
-
-
-## 统计某条路线当前仍在路上的行军单位数量。
-##
-## 调用场景：右侧任务 HUD 刷新时。
-## 主要逻辑：扫描当前全部行军单位，只统计来源和目标都完全匹配的路线，避免 HUD 把“存在任务”误写成“已经在路上”。
-func _get_route_marching_unit_count(source_id: int, target_id: int) -> int:
-	var count: int = 0
-	for unit in _marching_units:
-		if int(unit["source_id"]) != source_id:
-			continue
-		if int(unit["target_id"]) != target_id:
-			continue
-		count += 1
-	return count
-
-
-## 记录当前弹窗里“持续出兵”开关状态。
-##
-## 调用场景：玩家在出兵弹窗中手动勾选或取消勾选时。
-## 主要逻辑：只更新待确认订单状态，不立即下发命令；真正生效在点击“确认出兵”之后。
-func _on_order_continuous_toggle_toggled(enabled: bool) -> void:
-	_pending_order_continuous_enabled = enabled
+		_telemetry.get_last_second_dispatch_count(),
+		_telemetry.get_last_second_dispatch_soldiers()
+	)
 
 
 ## 注册一条持续出兵任务，按“源城+目标路线”唯一键替换旧任务。
@@ -381,7 +269,7 @@ func _remove_continuous_order(source_id: int, target_id: int) -> void:
 ## 主要逻辑：先累计这一秒的全部产能，再按“消费 1 次产兵进度 -> 立刻尝试派 1 人”的顺序循环；
 ## 即使城市起手已满员，只要挂着持续任务，也会把这一秒积累出来的产能直接转成真实出兵。
 func _is_gameplay_paused() -> bool:
-	return _manual_paused or overlay_layer.visible
+	return _manual_paused or overlay_layer.visible or order_dialog.visible
 
 
 ## 处理玩家在主场景上的原始输入，用于地图拖拽与基础指针跟踪。

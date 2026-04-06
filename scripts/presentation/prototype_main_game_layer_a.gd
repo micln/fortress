@@ -7,7 +7,6 @@ func _ready() -> void:
 	_apply_dynamic_resolution()
 	_apply_responsive_hud_layout()
 	_apply_responsive_overlay_layout()
-	_apply_responsive_order_dialog_layout()
 	get_window().size_changed.connect(_on_window_size_changed)
 	_audio_manager.setup(bgm_player, sfx_player)
 	# 音频延迟到用户首次交互后再初始化（Web 平台 autoplay 限制）
@@ -45,8 +44,10 @@ func _ready() -> void:
 		Callable(self, "_clear_selection_with_message")
 	)
 	_setup_ai_controls()
-	_setup_continuous_status_label()
 	_apply_ai_profile()
+	order_dialog.order_confirmed.connect(_on_order_dialog_confirmed)
+	order_dialog.order_cancelled.connect(_on_order_dialog_cancelled)
+	order_dialog.continuous_toggle_changed.connect(_on_order_dialog_continuous_toggle_changed)
 	upgrade_level_button.pressed.connect(_on_upgrade_level_button_pressed)
 	upgrade_defense_button.pressed.connect(_on_upgrade_defense_button_pressed)
 	upgrade_production_button.pressed.connect(_on_upgrade_production_button_pressed)
@@ -54,7 +55,7 @@ func _ready() -> void:
 	restart_button.pressed.connect(_on_restart_button_pressed)
 	home_button.pressed.connect(_on_home_button_pressed)
 	overlay_action_button.pressed.connect(_on_overlay_action_button_pressed)
-	order_dialog_layer.visible = false
+	order_dialog.visible = false
 	_setup_map_selection()
 
 
@@ -151,7 +152,7 @@ func _get_viewport_size() -> Vector2:
 ## 调用场景：CameraController 计算初始偏移时。
 ## 主要逻辑：返回顶部面板的 offset_bottom 值，用于计算安全区。
 func _get_top_panel_bottom() -> float:
-	return top_panel.offset_bottom
+	return hud.get_panel_bottom()
 
 
 ## 按当前窗口逻辑尺寸设置内容分辨率，避免高 DPI 设备把 UI 误缩小。
@@ -215,44 +216,7 @@ func _resize_map_world_for_viewport() -> void:
 ## 调用场景：主场景初始化、窗口尺寸变化、移动端旋转后。
 ## 主要逻辑：精简顶部栏，使用更小的尺寸和透明背景，最大化战场可视区域。
 func _apply_responsive_hud_layout() -> void:
-	var viewport_size: Vector2 = get_viewport_rect().size
-	var is_narrow_layout: bool = viewport_size.x <= NARROW_OVERLAY_BREAKPOINT
-
-	if is_narrow_layout:
-		# 移动端：更紧凑的顶部栏
-		top_panel.offset_left = 2.0
-		top_panel.offset_top = 2.0
-		top_panel.offset_right = -2.0
-		top_panel.offset_bottom = 44.0
-		top_margin.add_theme_constant_override("margin_left", 6)
-		top_margin.add_theme_constant_override("margin_top", 3)
-		top_margin.add_theme_constant_override("margin_right", 6)
-		top_margin.add_theme_constant_override("margin_bottom", 3)
-		top_info_column.add_theme_constant_override("separation", 0)
-		status_label.add_theme_font_size_override("font_size", 13)
-		status_label.visible = false  # 窄屏下隐藏状态标签，只保留配置信息
-		hint_label.visible = false
-		ai_config_label.add_theme_font_size_override("font_size", 12)
-		if _continuous_status_label != null:
-			_continuous_status_label.visible = false
-		return
-
-	# 桌面端：保持较小尺寸
-	top_panel.offset_left = 8.0
-	top_panel.offset_top = 8.0
-	top_panel.offset_right = -8.0
-	top_panel.offset_bottom = 72.0
-	top_margin.add_theme_constant_override("margin_left", 10)
-	top_margin.add_theme_constant_override("margin_top", 6)
-	top_margin.add_theme_constant_override("margin_right", 10)
-	top_margin.add_theme_constant_override("margin_bottom", 6)
-	top_info_column.add_theme_constant_override("separation", 2)
-	status_label.add_theme_font_size_override("font_size", 16)
-	status_label.visible = false  # 默认隐藏状态标签
-	hint_label.visible = false
-	ai_config_label.add_theme_font_size_override("font_size", 14)
-	if _continuous_status_label != null:
-		_continuous_status_label.visible = false
+	hud.apply_responsive_layout()
 
 
 ## 按当前视口宽度调整底部操作栏，使用更紧凑的布局。
@@ -314,102 +278,7 @@ func _apply_responsive_overlay_layout() -> void:
 ## 调用场景：主场景初始化、窗口尺寸变化、移动端旋转后。
 ## 主要逻辑：窄屏下取消固定最小宽度、收紧边距和字号，把正文区放进滚动容器，并压缩加减按钮、快捷按钮与底部操作按钮尺寸。
 func _apply_responsive_order_dialog_layout() -> void:
-	var viewport_size: Vector2 = get_viewport_rect().size
-	var is_narrow_layout: bool = viewport_size.x <= NARROW_OVERLAY_BREAKPOINT
-	var quick_buttons: Array[Button] = [
-		order_dialog_plus_20_button,
-		order_dialog_plus_50_button,
-		order_dialog_half_button,
-		order_dialog_full_button,
-		order_dialog_recommend_button,
-		order_dialog_keep_one_button
-	]
-	var adjust_buttons: Array[Button] = [
-		order_dialog_minus_10_button,
-		order_dialog_minus_1_button,
-		order_dialog_plus_1_button,
-		order_dialog_plus_10_button
-	]
-
-	if is_narrow_layout:
-		order_dialog_panel.anchor_left = 0.03
-		order_dialog_panel.anchor_top = 0.08
-		order_dialog_panel.anchor_right = 0.97
-		order_dialog_panel.anchor_bottom = 0.92
-		order_dialog_panel.custom_minimum_size = Vector2(0.0, 0.0)
-		order_dialog_margin.add_theme_constant_override("margin_left", 14)
-		order_dialog_margin.add_theme_constant_override("margin_top", 14)
-		order_dialog_margin.add_theme_constant_override("margin_right", 14)
-		order_dialog_margin.add_theme_constant_override("margin_bottom", 14)
-		order_dialog_column.add_theme_constant_override("separation", 12)
-		order_dialog_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		order_dialog_title_label.add_theme_font_size_override("font_size", 28)
-		order_dialog_context_label.add_theme_font_size_override("font_size", 16)
-		order_dialog_recommended_label.add_theme_font_size_override("font_size", 14)
-		order_dialog_forecast_label.add_theme_font_size_override("font_size", 14)
-		order_dialog_outcome_label.add_theme_font_size_override("font_size", 16)
-		order_dialog_count_label.add_theme_font_size_override("font_size", 28)
-		order_dialog_adjust_row.add_theme_constant_override("separation", 8)
-		order_dialog_quick_grid.columns = 2
-		order_dialog_quick_grid.add_theme_constant_override("h_separation", 10)
-		order_dialog_quick_grid.add_theme_constant_override("v_separation", 10)
-		order_dialog_action_row.add_theme_constant_override("separation", 6)
-		for button in adjust_buttons:
-			button.add_theme_font_size_override("font_size", 18)
-			button.custom_minimum_size = Vector2(0.0, 42.0)
-		for button in quick_buttons:
-			button.add_theme_font_size_override("font_size", 18)
-			button.custom_minimum_size = Vector2(0.0, 42.0)
-		order_dialog_cancel_button.text = "取消"
-		order_dialog_cancel_button.add_theme_font_size_override("font_size", 14)
-		order_dialog_cancel_button.custom_minimum_size = Vector2(64.0, 36.0)
-		order_dialog_confirm_button.text = "出兵"
-		order_dialog_confirm_button.add_theme_font_size_override("font_size", 14)
-		order_dialog_confirm_button.custom_minimum_size = Vector2(68.0, 36.0)
-		if _order_dialog_continuous_toggle != null:
-			_order_dialog_continuous_toggle.add_theme_font_size_override("font_size", 14)
-		return
-
-	order_dialog_panel.anchor_left = 0.1
-	order_dialog_panel.anchor_top = 0.18
-	order_dialog_panel.anchor_right = 0.9
-	order_dialog_panel.anchor_bottom = 0.84
-	order_dialog_panel.custom_minimum_size = Vector2(500.0, 520.0)
-	order_dialog_margin.add_theme_constant_override("margin_left", 24)
-	order_dialog_margin.add_theme_constant_override("margin_top", 24)
-	order_dialog_margin.add_theme_constant_override("margin_right", 24)
-	order_dialog_margin.add_theme_constant_override("margin_bottom", 24)
-	order_dialog_column.add_theme_constant_override("separation", 16)
-	order_dialog_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	order_dialog_title_label.add_theme_font_size_override("font_size", 46)
-	order_dialog_context_label.add_theme_font_size_override("font_size", 26)
-	order_dialog_recommended_label.add_theme_font_size_override("font_size", 17)
-	order_dialog_forecast_label.add_theme_font_size_override("font_size", 17)
-	order_dialog_outcome_label.add_theme_font_size_override("font_size", 26)
-	order_dialog_count_label.add_theme_font_size_override("font_size", 46)
-	order_dialog_adjust_row.add_theme_constant_override("separation", 14)
-	order_dialog_quick_grid.columns = 3
-	order_dialog_quick_grid.add_theme_constant_override("h_separation", 14)
-	order_dialog_quick_grid.add_theme_constant_override("v_separation", 14)
-	order_dialog_action_row.add_theme_constant_override("separation", 16)
-	for button in adjust_buttons:
-		button.add_theme_font_size_override("font_size", 24)
-		button.custom_minimum_size = Vector2(0.0, 52.0)
-	order_dialog_minus_10_button.custom_minimum_size = Vector2(110.0, 52.0)
-	order_dialog_minus_1_button.custom_minimum_size = Vector2(100.0, 52.0)
-	order_dialog_plus_1_button.custom_minimum_size = Vector2(100.0, 52.0)
-	order_dialog_plus_10_button.custom_minimum_size = Vector2(110.0, 52.0)
-	for button in quick_buttons:
-		button.add_theme_font_size_override("font_size", 24)
-		button.custom_minimum_size = Vector2(0.0, 52.0)
-	order_dialog_cancel_button.text = "取消"
-	order_dialog_cancel_button.add_theme_font_size_override("font_size", 26)
-	order_dialog_cancel_button.custom_minimum_size = Vector2(180.0, 58.0)
-	order_dialog_confirm_button.text = "确认出兵"
-	order_dialog_confirm_button.add_theme_font_size_override("font_size", 26)
-	order_dialog_confirm_button.custom_minimum_size = Vector2(220.0, 58.0)
-	if _order_dialog_continuous_toggle != null:
-		_order_dialog_continuous_toggle.add_theme_font_size_override("font_size", 20)
+	order_dialog.apply_responsive_layout()
 
 
 ## 推进战局主循环，包括行军、产兵和敌军 AI 下单。
@@ -425,15 +294,7 @@ func _process(delta: float) -> void:
 	_update_marching_units(delta)
 	_production_elapsed += delta
 	_enemy_elapsed += delta
-	_continuous_dispatch_window_elapsed += delta
-	if _continuous_dispatch_window_elapsed >= 1.0:
-		_continuous_dispatch_window_elapsed -= 1.0
-		_continuous_dispatch_last_second_count = _continuous_dispatch_count_in_window
-		_continuous_dispatch_last_second_soldiers = _continuous_dispatch_soldiers_in_window
-		_continuous_dispatch_counts_by_source_last_second = _continuous_dispatch_counts_by_source_in_window.duplicate(true)
-		_continuous_dispatch_count_in_window = 0
-		_continuous_dispatch_soldiers_in_window = 0
-		_continuous_dispatch_counts_by_source_in_window.clear()
+	if _telemetry.advance_continuous_dispatch_window(delta):
 		_refresh_continuous_status_label()
 
 	if _production_elapsed >= 1.0:
@@ -518,21 +379,8 @@ func _open_order_dialog(source_id: int, target_id: int, is_transfer: bool) -> vo
 	var max_count: int = source.soldiers
 	var recommended_count: int = max_count
 
-	if is_transfer:
-		order_dialog_title_label.text = "运兵数量"
-		order_dialog_recommended_label.text = "运兵可自由选择人数。`100%` 表示整队输送。"
-	else:
-		order_dialog_title_label.text = "进攻数量"
+	if not is_transfer:
 		recommended_count = _battle_service.get_recommended_attack_count(source, target, travel_duration)
-		order_dialog_recommended_label.text = "推荐 %d 人。已计入目标防御 %d 和路上可能新增的产兵。" % [recommended_count, target.defense]
-
-	_pending_order = {
-		"source_id": source_id,
-		"target_id": target_id,
-		"is_transfer": is_transfer,
-		"recommended_count": recommended_count
-	}
-	_pending_order_continuous_enabled = true
 	_log_game_debug("order_dialog_opened", {
 		"source_id": source_id,
 		"source_name": source.name,
@@ -542,28 +390,12 @@ func _open_order_dialog(source_id: int, target_id: int, is_transfer: bool) -> vo
 		"recommended_count": recommended_count,
 		"source_soldiers": source.soldiers
 	})
-	_pending_order_count = clamp(recommended_count, 1, max_count)
-	order_dialog_context_label.text = "%s -> %s，当前可派 %d 人。点空白可取消选城。" % [source.name, target.name, max_count]
-	order_dialog_layer.visible = true
-	status_label.text = "出兵面板已打开，战局已暂停。确认或取消后会继续。"
-	hint_label.text = "你可以慢慢调整人数，行军、产兵和电脑 AI 会暂时停止。"
-	_refresh_order_dialog()
+	order_dialog.setup(_battle_service, _cities)
+	order_dialog.open(source_id, target_id, is_transfer, recommended_count, max_count)
+	hud.update_status("出兵面板已打开，战局已暂停。确认或取消后会继续。")
+	hud.update_hint("你可以慢慢调整人数，行军、产兵和电脑 AI 会暂时停止。")
 	_refresh_view()
 	_audio_manager.play_sfx_by_id("select")
-
-
-## 刷新出兵数量对话框里的数字和按钮状态。
-##
-## 调用场景：打开对话框后、点击各种快捷按钮后。
-## 主要逻辑：更新中央数量显示，并根据上下限禁用不合法的加减操作。
-func _on_order_cancel_button_pressed() -> void:
-	order_dialog_layer.visible = false
-	_pending_order.clear()
-	_pending_order_continuous_enabled = false
-	_log_game_debug("order_dialog_cancelled", {})
-	status_label.text = "已取消本次出兵确认。你仍可以重新选择一个目标城市。"
-	hint_label.text = "点己方城市可跨图运兵，点敌方或中立城市需要道路相邻。"
-	_refresh_view()
 
 
 ## 确认当前出兵数量并正式创建行军单位。
