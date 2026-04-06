@@ -100,7 +100,11 @@
 
 - `project.godot`
 - `scenes/main/prototype_main.tscn`
-- `scripts/presentation/prototype_main_game.gd`
+- `scripts/presentation/prototype_main_game.gd`（入口壳，继续保持场景引用不变）
+- `scripts/presentation/prototype_main_game_layer_a.gd`（装配/初始化）
+- `scripts/presentation/prototype_main_game_layer_b.gd`（主流程与 UI 编排）
+- `scripts/presentation/prototype_main_game_layer_c.gd`（共享基础与工具）
+- `scripts/presentation/prototype_main_input_handler.gd`（输入/手势与取消选城语义）
 - `scripts/presentation/prototype_city_view.gd`
 - `scripts/application/prototype_map_generator.gd`
 - `scripts/application/prototype_battle_service.gd`
