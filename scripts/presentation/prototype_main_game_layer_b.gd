@@ -95,7 +95,7 @@ func _clear_city_views() -> void:
 ## 主要逻辑：复制隐藏模板节点，设置城市编号和名称，并把点击信号回接到主控制器。
 func _spawn_city_views() -> void:
 	for city in _cities:
-		var city_view = city_template.duplicate()
+		var city_view: PrototypeCityView = CITY_SCENE.instantiate()
 		city_view.visible = true
 		city_view.name = "City_%d" % city.city_id
 		cities_root.add_child(city_view)
@@ -205,7 +205,7 @@ func _toggle_player_continuous_order(source_id: int, target_id: int) -> void:
 		hud.update_status("已停止持续出兵：%s -> %s。" % [source.name, target.name])
 		hud.update_hint("同一路线再次点击即可重新开启；源城还能继续配置其他目标。")
 	else:
-		hud.update_status("已开启持续%s：%s -> %s。该城之后每产 1 兵就会自动派 1 人。" % [current_mode, source.name, target.name])
+		hud.update_status("已开启持续%s：%s -> %s。该城之后每产 10 兵就会自动派 10 人。" % [current_mode, source.name, target.name])
 		hud.update_hint("同一路线再次点击可关闭；一个源城有多条任务时会轮流出兵。")
 	_refresh_view()
 
@@ -357,6 +357,7 @@ func _refresh_view() -> void:
 	hud.update_ai_config(_player_count, _get_ai_difficulty_name(_ai_difficulty), _get_ai_style_name(_ai_style), _manual_paused)
 	pause_button.disabled = _game_over or not _game_started
 	_refresh_pause_button_visual()
+	_sync_audio_pause_state()
 	_refresh_upgrade_buttons()
 	queue_redraw()
 
@@ -531,7 +532,7 @@ func _on_order_dialog_confirmed(source_id: int, target_id: int, count: int, cont
 	})
 	if continuous:
 		_register_continuous_order(source_id, target_id)
-		hud.update_status("已注册持续出兵任务，后续仅按产兵触发自动派 1 人。")
+		hud.update_status("已注册持续出兵任务，后续仅按产兵触发自动派 10 人。")
 		hud.update_hint("数量框只影响一次性出兵；持续出兵不会读取该数值。")
 		_refresh_view()
 		return
@@ -621,8 +622,8 @@ func _calculate_march_duration(source_id: int, target_id: int) -> float:
 ## 推进所有行军单位，并处理路上遭遇战与最终到达结算。
 ##
 ## 调用场景：每帧 `_process` 中。
-## 主要逻辑：先根据各自方向向量更新所有行军单位的真实位置，再处理道路上不同势力部队的遭遇战，
-## 最后把已到达单位按“进攻优先、发射顺序稳定”排序后逐条处理。
+## 主要逻辑：先根据各自方向向量更新所有行军单位的真实位置，再优先结算已进入目标城市外圈的到达单位，
+## 最后处理道路上不同势力部队的遭遇战；避免“快进城了却先在城门口互相抵消”的违和表现。
 func _update_marching_units(delta: float) -> void:
 	if _marching_units.is_empty():
 		return
@@ -636,115 +637,73 @@ func _update_marching_units(delta: float) -> void:
 		unit["progress"] = next_traveled_distance / float(unit["travel_distance"])
 		unit["current_position"] = _cities[int(unit["source_id"])].position + Vector2(unit["march_direction"]) * next_traveled_distance
 
-	_resolve_marching_collisions()
-
 	var arrived_units: Array = []
 	for unit in _marching_units:
-		if float(unit["traveled_distance"]) >= float(unit["travel_distance"]) - 0.001:
+		if _has_reached_target_city(unit):
 			arrived_units.append(unit)
 
-	arrived_units.sort_custom(_sort_arrived_units)
+	if not arrived_units.is_empty():
+		arrived_units.sort_custom(_sort_arrived_units)
+		for arrived_unit in arrived_units:
+			_marching_units.erase(arrived_unit)
+		_resolve_arrived_units_by_city(arrived_units)
 
-	for arrived_unit in arrived_units:
-		_marching_units.erase(arrived_unit)
-	_resolve_arrived_units_by_city(arrived_units)
+	_resolve_marching_collisions()
 
 	queue_redraw()
 
 
-## 把同一帧到达的行军单位按目标城市分组结算，减少“先处理谁”带来的结果偏差。
+## 判断行军单位是否已经进入目标城市的到达外圈。
+##
+## 调用场景：每帧推进后筛选到达单位时。
+## 主要逻辑：优先按“当前位置到目标城距离 <= 到达半径”判定，兜底保留旧的总路程判定；
+## 到达半径会随当前缩放换算到世界坐标，确保视觉上接近城池边缘时即可结算到达。
+func _has_reached_target_city(unit: Dictionary) -> bool:
+	var target_id: int = int(unit["target_id"])
+	if target_id < 0 or target_id >= _cities.size():
+		return true
+	var target = _cities[target_id]
+	var unit_position: Vector2 = _get_marching_unit_position(unit)
+	var arrival_distance_world: float = _get_city_arrival_distance_world()
+	if unit_position.distance_to(target.position) <= arrival_distance_world:
+		return true
+	return float(unit["traveled_distance"]) >= float(unit["travel_distance"]) - 0.001
+
+
+## 返回当前缩放下“城市外圈到达判定”的世界坐标半径。
+##
+## 调用场景：`_has_reached_target_city()` 计算到城阈值时。
+## 主要逻辑：城市图标半径是屏幕像素常量，因此把屏幕半径按当前 zoom 反算到世界半径；
+## 这样无论缩放如何变化，到达判定都尽量贴近玩家看到的城市边缘。
+func _get_city_arrival_distance_world() -> float:
+	var zoom: float = max(0.1, _camera_controller.map_zoom)
+	return max(16.0, CITY_ARRIVAL_RADIUS_SCREEN / zoom)
+
+
+## 判断行军单位是否已经进入其目标城市的到达圈。
+##
+## 调用场景：道路遭遇战判定前的过滤。
+## 主要逻辑：若单位已贴近目标城边缘，则应优先进入到城结算流程，
+## 不再参与路上互撞，避免“城门口互相抵消导致守军未扣减”。
+func _is_unit_in_target_arrival_zone(unit: Dictionary) -> bool:
+	var target_id: int = int(unit["target_id"])
+	if target_id < 0 or target_id >= _cities.size():
+		return false
+	var target_position: Vector2 = _cities[target_id].position
+	var unit_position: Vector2 = _get_marching_unit_position(unit)
+	return unit_position.distance_to(target_position) <= _get_city_arrival_distance_world()
+
+
+## 按到达顺序逐条结算同一帧到达的行军单位，不做同帧同城合并处理。
 ##
 ## 调用场景：`_update_marching_units()` 收集完本帧全部到达单位后。
-## 主要逻辑：同城先批量处理 `attack` 到达（同帧混战+一次攻城），再按发射顺序处理 `transfer`，
-## 保持“进攻优先于运兵”的既有语义，同时避免多方同帧入城时的串行顺序敏感。
+## 主要逻辑：到达队列已经按“进攻优先 + 发射顺序”排序，这里保持该顺序逐条执行；
+## 不引入“同帧同城特殊规则”，确保“先到先打、先占先得”。
 func _resolve_arrived_units_by_city(arrived_units: Array) -> void:
 	if arrived_units.is_empty():
 		return
-
-	var units_by_target: Dictionary = {}
 	for unit in arrived_units:
-		var target_id: int = int(unit["target_id"])
-		if not units_by_target.has(target_id):
-			units_by_target[target_id] = []
-		units_by_target[target_id].append(unit)
-
-	var ordered_target_ids: Array[int] = []
-	for target_key in units_by_target.keys():
-		ordered_target_ids.append(int(target_key))
-	ordered_target_ids.sort()
-
-	for target_id in ordered_target_ids:
-		var target_units: Array = units_by_target[target_id]
-		var attack_units: Array = []
-		var transfer_units: Array = []
-		for unit in target_units:
-			if String(unit["type"]) == "attack":
-				attack_units.append(unit)
-			else:
-				transfer_units.append(unit)
-
-		if not attack_units.is_empty():
-			_resolve_simultaneous_attack_arrivals_for_city(target_id, attack_units)
-
-		if transfer_units.is_empty():
-			continue
-		transfer_units.sort_custom(_sort_arrived_units)
-		for transfer_unit in transfer_units:
-			_resolve_marching_unit_arrival(transfer_unit)
-
-
-## 结算某一城市在同一帧内到达的全部进攻部队，避免按发射顺序逐条改写城池状态。
-##
-## 调用场景：`_resolve_arrived_units_by_city()` 拆分出同目标城市的 `attack` 单位后。
-## 主要逻辑：先按阵营聚合到达兵力，再交给应用层做同帧混战与一次攻城结算；
-## 结算完成后统一处理归属变化、提示文案、音效与刷新。
-func _resolve_simultaneous_attack_arrivals_for_city(target_id: int, attack_units: Array) -> void:
-	if target_id < 0 or target_id >= _cities.size():
-		return
-	if attack_units.is_empty():
-		return
-
-	var target = _cities[target_id]
-	var owner_before_arrival: int = target.owner
-	var arrivals_by_owner: Dictionary = {}
-	for unit in attack_units:
-		var owner: int = int(unit["owner"])
-		var count: int = max(0, int(unit["count"]))
-		if count <= 0:
-			continue
-		arrivals_by_owner[owner] = int(arrivals_by_owner.get(owner, 0)) + count
-
-	if arrivals_by_owner.is_empty():
-		return
-
-	var result: Dictionary = _battle_service.resolve_simultaneous_attack_arrivals(target, arrivals_by_owner)
-	_log_game_debug("march_arrival_attack_batch", {
-		"target_id": target_id,
-		"target_name": target.name,
-		"arrivals_by_owner": arrivals_by_owner,
-		"winner_owner": result.get("winner_owner", PrototypeCityOwnerRef.NEUTRAL),
-		"winner_count": result.get("winner_count", 0),
-		"contested": result.get("contested", false),
-		"captured": result.get("captured", false),
-		"reinforced": result.get("reinforced", false),
-		"target_owner_after": target.owner,
-		"target_soldiers_after": target.soldiers
-	})
-	hud.update_status(String(result.get("message", "")))
-	if bool(result.get("captured", false)):
-		hud.update_hint("同帧多支进攻已合并结算，避免先后顺序改变攻城结果。")
-		_audio_manager.play_sfx_by_id("capture")
-	elif bool(result.get("reinforced", false)):
-		hud.update_hint("同阵营到达部队已先并入守军，再结算同帧进攻。")
-		_audio_manager.play_sfx_by_id("transfer")
-	else:
-		hud.update_hint("同帧多方进攻已按批量规则结算。")
-		_audio_manager.play_sfx_by_id("attack")
-
-	if owner_before_arrival != target.owner:
-		_handle_city_owner_changed(target.city_id, owner_before_arrival, target.owner)
-	_refresh_view()
-	_check_game_over()
+		_resolve_marching_unit_arrival(unit)
 
 
 ## 处理道路上彼此接触的不同势力行军单位。
@@ -761,6 +720,13 @@ func _resolve_marching_collisions() -> void:
 				var left_unit: Dictionary = _marching_units[left_index]
 				var right_unit: Dictionary = _marching_units[right_index]
 				if int(left_unit["owner"]) == int(right_unit["owner"]):
+					continue
+				# 同一目标城的进攻部队不在路上互撞，统一交给到城结算处理。
+				# 这样可避免 A/B 同时进攻 C 时，在城外被提前互相抵消。
+				if int(left_unit["target_id"]) == int(right_unit["target_id"]):
+					continue
+				# 任一部队已进入其目标城到达圈时，优先交给到城结算，不参与路上遭遇战。
+				if _is_unit_in_target_arrival_zone(left_unit) or _is_unit_in_target_arrival_zone(right_unit):
 					continue
 				if _get_marching_unit_position(left_unit).distance_to(_get_marching_unit_position(right_unit)) > MARCH_COLLISION_DISTANCE:
 					continue
@@ -1142,7 +1108,7 @@ func _register_continuous_order(source_id: int, target_id: int) -> void:
 		"target_name": _cities[target_id].name,
 		"action": ensure_result.get("action", "")
 	})
-	hud.update_status("已开启持续出兵：%s -> %s，源城每产 1 兵就自动派 1 人。" % [_cities[source_id].name, _cities[target_id].name])
+	hud.update_status("已开启持续出兵：%s -> %s，源城每产 10 兵就自动派 10 人。" % [_cities[source_id].name, _cities[target_id].name])
 	hud.update_hint("持续出兵不使用数量框；数量框只影响本次一次性出兵。")
 	_refresh_continuous_status_label()
 	_refresh_view()
@@ -1169,20 +1135,33 @@ func _produce_soldiers_and_dispatch_continuous_orders() -> void:
 
 		var produced_count: int = 0
 		var dispatched_from_full_count: int = 0
-		while city.get_ready_production_count() > 0:
+		while city.get_ready_production_count() >= CONTINUOUS_DISPATCH_BATCH_SIZE:
 			if city.can_produce():
-				if not city.try_produce_one_soldier():
+				var produced_batch: int = 0
+				for _index in range(CONTINUOUS_DISPATCH_BATCH_SIZE):
+					if not city.try_produce_one_soldier():
+						break
+					produced_batch += 1
+				if produced_batch < CONTINUOUS_DISPATCH_BATCH_SIZE:
 					break
-				produced_count += 1
+				produced_count += produced_batch
 				_dispatch_continuous_orders_for_source(city.city_id)
 				continue
 
 			if not has_continuous_orders:
 				break
-			if not city.consume_one_ready_production():
+			var consumed_batch: int = 0
+			for _index in range(CONTINUOUS_DISPATCH_BATCH_SIZE):
+				if not city.consume_one_ready_production():
+					break
+				consumed_batch += 1
+			if consumed_batch < CONTINUOUS_DISPATCH_BATCH_SIZE:
 				break
-			dispatched_from_full_count += 1
-			_dispatch_continuous_orders_for_source(city.city_id)
+			dispatched_from_full_count += consumed_batch
+			# 满员时把本次“新增批次”临时注入到驻军里，仅用于本次自动派兵，保证不会动到历史存量。
+			city.soldiers += CONTINUOUS_DISPATCH_BATCH_SIZE
+			if not _dispatch_continuous_orders_for_source(city.city_id):
+				city.soldiers = max(0, city.soldiers - CONTINUOUS_DISPATCH_BATCH_SIZE)
 		if produced_count <= 0:
 			if dispatched_from_full_count <= 0:
 				continue
@@ -1199,7 +1178,7 @@ func _produce_soldiers_and_dispatch_continuous_orders() -> void:
 
 ## 针对某个源城触发一次持续出兵检查。
 ##
-## 调用场景：该源城每产生 1 个新士兵后。
+## 调用场景：该源城每累计到一个批次（默认 10 人）新增兵力后。
 ## 主要逻辑：把源城交给调度服务做一次轮转选择；成功时复用现有行军执行链，失败时只记录原因。
 func _dispatch_continuous_orders_for_source(source_id: int) -> bool:
 	var dispatch_result: Dictionary = _order_dispatch_service.dispatch_for_source(_cities, source_id)
@@ -1226,7 +1205,7 @@ func _try_execute_continuous_order(dispatch_result: Dictionary) -> bool:
 	var target_id: int = int(dispatch_result["target_id"])
 	var source = _cities[source_id]
 	var target = _cities[target_id]
-	var troop_count: int = int(dispatch_result.get("troop_count", 1))
+	var troop_count: int = int(dispatch_result.get("troop_count", 10))
 	var is_transfer: bool = bool(dispatch_result.get("is_transfer", false))
 	_log_game_debug("continuous_order_triggered", {
 		"source_id": source_id,

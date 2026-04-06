@@ -18,12 +18,18 @@ const CITY_BASE_INNER_RADIUS: float = 46.0
 const CITY_BASE_PLATE_RECT: Rect2 = Rect2(Vector2(-32.0, 42.0), Vector2(64.0, 19.0))
 const CITY_PLATFORM_RECT: Rect2 = Rect2(Vector2(-53.0, 21.0), Vector2(106.0, 32.0))
 const CITY_MOAT_RADIUS: float = 70.0
+const CITY_ICON_SCALE: float = 1.4
+const CITY_PLAQUE_RECT: Rect2 = Rect2(Vector2(-22.0, 8.0), Vector2(44.0, 14.0))
+const CITY_PLAQUE_TEXT_Y_OFFSET: float = 18.0
+const CITY_PLAQUE_FONT_BASE_SIZE: int = 8
 const PrototypeCityOwnerRef = preload("res://scripts/domain/prototype_city_owner.gd")
+const UI_FONT: Font = preload("res://assets/fonts/NotoSansSC-Regular.otf")
 
 var city_id: int = -1
 var city_owner: int = PrototypeCityOwnerRef.NEUTRAL
 var city_level: int = 1
 var city_node_type: String = "normal"
+var _city_name_text: String = ""
 var is_selected: bool = false
 var _mouse_pressing: bool = false
 var _mouse_press_position: Vector2 = Vector2.ZERO
@@ -45,9 +51,11 @@ var _last_touch_tap_time_ms: int = -1
 ## 主要逻辑：写入城市编号和名称，并用矩形碰撞体统一覆盖触控与鼠标点击范围。
 func setup(p_city_id: int, p_city_name: String) -> void:
 	city_id = p_city_id
-	name_label.text = p_city_name
+	_city_name_text = p_city_name
+	name_label.visible = false
+	name_label.text = ""
 	var shape := RectangleShape2D.new()
-	shape.size = CITY_SIZE
+	shape.size = CITY_SIZE * CITY_ICON_SCALE
 	collision_shape.shape = shape
 
 
@@ -61,10 +69,11 @@ func sync_from_state(city, selected: bool, screen_position: Vector2) -> void:
 	city_owner = city.owner
 	city_level = city.level
 	city_node_type = String(city.node_type)
+	_city_name_text = city.name
 	is_selected = selected
 	position = screen_position
 	marker_label.text = ""
-	name_label.text = city.name
+	name_label.text = ""
 	soldier_label.text = "%d/%d" % [city.soldiers, city.max_soldiers]
 	attr_label.text = _build_attr_text(city)
 	queue_redraw()
@@ -167,12 +176,15 @@ func _read_marker_bool_setting(value, default_value: bool = false) -> bool:
 ## 让城市在不依赖额外美术资源的情况下仍能保持稳定识别度。
 func _draw() -> void:
 	var base_color: Color = PrototypeCityOwnerRef.get_color(city_owner)
+	# 城市图标与命中区域同步放大，避免视觉与判定不一致。
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE * CITY_ICON_SCALE)
 	_draw_city_base(base_color)
 	_draw_city_keep(base_color)
 	if city_node_type == "heartland":
 		_draw_heartland_core_marker(base_color)
 	if is_selected:
 		_draw_city_selection_highlight()
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## 绘制城市石砌台基，配合中式城堡整体风格。
@@ -211,6 +223,7 @@ func _draw_city_keep(base_color: Color) -> void:
 
 	# 墙壁
 	draw_rect(CITY_BODY_RECT, wall_color)
+	_draw_city_name_plaque(name_label.text)
 
 	# 城门（深褐）
 	var gate_rect := Rect2(Vector2(-7.0, CITY_BODY_RECT.end.y - 12.0), Vector2(14.0, 12.0))
@@ -225,6 +238,52 @@ func _draw_city_keep(base_color: Color) -> void:
 	# 墙体轮廓
 	draw_rect(CITY_BODY_RECT, line_color, false, 1.5)
 	draw_rect(gate_rect, line_color, false, 1.0)
+
+
+## 在城楼正面绘制城市牌匾并显示城市名，增强主体识别。
+##
+## 调用场景：城市主体墙面绘制完成后。
+## 主要逻辑：先绘制木质牌匾底色和描边，再根据城市名长度选择紧凑字号，把文本居中到牌匾内。
+func _draw_city_name_plaque(city_name: String) -> void:
+	var plaque_bg: Color = Color(0.38, 0.23, 0.12, 0.96)
+	var text_color: Color = Color(0.98, 0.90, 0.73, 1.0)
+	var font_size: int = _get_city_plaque_font_size(city_name)
+	var trim_color: Color = Color(0.78, 0.64, 0.33, 0.95)
+	var effective_name: String = city_name if not city_name.is_empty() else _city_name_text
+
+	# 牌匾主体（去掉最外层深色外框，仅保留描金内框）
+	draw_rect(CITY_PLAQUE_RECT, plaque_bg)
+	# 古风描金内边：确保文本完整包裹在内框之中
+	draw_rect(CITY_PLAQUE_RECT.grow(-1.5), trim_color, false, 1.0)
+	# 两端金钉
+	draw_circle(Vector2(CITY_PLAQUE_RECT.position.x + 5.0, CITY_PLAQUE_RECT.position.y + CITY_PLAQUE_RECT.size.y * 0.5), 1.5, trim_color)
+	draw_circle(Vector2(CITY_PLAQUE_RECT.end.x - 5.0, CITY_PLAQUE_RECT.position.y + CITY_PLAQUE_RECT.size.y * 0.5), 1.5, trim_color)
+
+	# 文本基线必须从牌匾左边界起算，否则会出现“逻辑居中但视觉偏右”。
+	draw_string(
+		UI_FONT,
+		Vector2(CITY_PLAQUE_RECT.position.x, CITY_PLAQUE_TEXT_Y_OFFSET),
+		effective_name,
+		HORIZONTAL_ALIGNMENT_CENTER,
+		CITY_PLAQUE_RECT.size.x,
+		font_size,
+		text_color
+	)
+
+
+## 根据城市名字长度返回牌匾字号，避免长名字溢出或拥挤。
+##
+## 调用场景：绘制城市牌匾文本时。
+## 主要逻辑：短名用基准字号，超过阈值后逐级下调，兼顾可读性与牌匾边界。
+func _get_city_plaque_font_size(city_name: String) -> int:
+	var length: int = city_name.length()
+	if length <= 2:
+		return CITY_PLAQUE_FONT_BASE_SIZE
+	if length == 3:
+		return CITY_PLAQUE_FONT_BASE_SIZE - 1
+	if length == 4:
+		return CITY_PLAQUE_FONT_BASE_SIZE - 2
+	return CITY_PLAQUE_FONT_BASE_SIZE - 3
 
 
 func _draw_double_roof(pos: Vector2, w: float, h: float, roof_color: Color, line_color: Color) -> void:
@@ -276,24 +335,12 @@ func _draw_double_roof(pos: Vector2, w: float, h: float, roof_color: Color, line
 	draw_line(Vector2(inner_l2 - 6.0, mid_y), Vector2(inner_r2 + 6.0, mid_y), line_color, 1.0, true)
 
 
-## 为 `heartland` 额外绘制固定的核心外圈和底部徽记。
+## 兼容保留 `heartland` 的绘制钩子；当前按视觉方案移除外圈与菱形徽记。
 ##
 ## 调用场景：城市节点重绘时，仅在腹地节点上调用。
-## 主要逻辑：用外圈强调"核心据点"的概念，再用底部菱形徽记做稳定识别，不把差异只放在文字或颜色上。
-func _draw_heartland_core_marker(base_color: Color) -> void:
-	var ring_color: Color = base_color.lightened(0.48)
-	var badge_color: Color = Color(0.975, 0.845, 0.41)
-	var badge_outline: Color = Color(0.32, 0.22, 0.08, 0.88)
-	var badge_points := PackedVector2Array([
-		Vector2(0.0, 22.0),
-		Vector2(8.0, 30.0),
-		Vector2(0.0, 38.0),
-		Vector2(-8.0, 30.0)
-	])
-
-	draw_arc(Vector2(0.0, 4.0), 30.0, 0.0, TAU, 64, ring_color, 4.0, true)
-	draw_colored_polygon(badge_points, badge_color)
-	draw_polyline(badge_points, badge_outline, 2.0, true)
+## 主要逻辑：不再额外叠加圆圈和门前徽记，保持城市主体更简洁。
+func _draw_heartland_core_marker(_base_color: Color) -> void:
+	return
 
 
 ## 绘制城市被选中时的柔和高亮，避免直接改动点击范围。

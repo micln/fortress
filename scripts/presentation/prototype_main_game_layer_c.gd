@@ -15,6 +15,7 @@ const GameStateManagerRef = preload("res://scripts/presentation/game_state_manag
 const MarchControllerRef = preload("res://scripts/presentation/march_controller.gd")
 const PrototypeMainInputHandlerRef = preload("res://scripts/presentation/prototype_main_input_handler.gd")
 const PrototypeMatchTelemetryRef = preload("res://scripts/presentation/prototype_match_telemetry.gd")
+const CITY_SCENE: PackedScene = preload("res://scenes/world/city.tscn")
 const UI_FONT: Font = preload("res://assets/fonts/NotoSansSC-Regular.otf")
 const PAUSE_BUTTON_ICON: Texture2D = preload("res://assets/icons/pause.svg")
 const RESUME_BUTTON_ICON: Texture2D = preload("res://assets/icons/play.svg")
@@ -25,6 +26,8 @@ const SOLDIER_VISUAL_SPACING: float = 42.0
 const SOLDIER_VISUAL_LANE_OFFSET: float = 21.0
 const MAX_VISUAL_SOLDIERS_PER_UNIT: int = 18
 const MARCH_COLLISION_DISTANCE: float = 34.0
+const CITY_ARRIVAL_RADIUS_SCREEN: float = 72.0
+const CONTINUOUS_DISPATCH_BATCH_SIZE: int = 10
 const NARROW_OVERLAY_BREAKPOINT: float = 520.0
 const AI_DIFFICULTY_ITEMS: Array = [
 	{"id": PrototypeEnemyAiServiceRef.DIFFICULTY_EASY, "name": "简单"},
@@ -124,7 +127,6 @@ func _consume_input() -> void:
 @onready var cities_root: Node2D = $Cities
 @onready var bgm_player: AudioStreamPlayer = $BgmPlayer
 @onready var sfx_player: AudioStreamPlayer = $SfxPlayer
-@onready var city_template = $CityTemplate
 @onready var ui_layer: CanvasLayer = $UILayer
 @onready var hud = $UILayer/TopPanel
 @onready var floating_upgrade_panel: PanelContainer = $UILayer/FloatingUpgradePanel
@@ -251,7 +253,7 @@ func _refresh_continuous_status_label() -> void:
 ## 注册一条持续出兵任务，按“源城+目标路线”唯一键替换旧任务。
 ##
 ## 调用场景：玩家确认出兵并勾选“持续出兵”时。
-## 主要逻辑：只记录路线信息；后续每次触发固定自动派 1 人，并按目标当前归属动态决定是进攻还是运兵。
+## 主要逻辑：只记录路线信息；后续每次触发固定自动派 10 人，并按目标当前归属动态决定是进攻还是运兵。
 func _remove_continuous_order(source_id: int, target_id: int) -> void:
 	var removed: bool = _order_dispatch_service.remove_order(source_id, target_id)
 	if removed:
@@ -265,10 +267,10 @@ func _remove_continuous_order(source_id: int, target_id: int) -> void:
 	_refresh_continuous_status_label()
 
 
-## 每秒产兵后按“每产出 1 兵触发一次检查”规则推进持续出兵任务。
+## 每秒产兵后按“每累计到一个批次兵力触发一次检查”规则推进持续出兵任务。
 ##
 ## 调用场景：主循环产兵 Tick（每秒一次）。
-## 主要逻辑：先累计这一秒的全部产能，再按“消费 1 次产兵进度 -> 立刻尝试派 1 人”的顺序循环；
+## 主要逻辑：先累计这一秒的全部产能，再按“消费一个批次产兵进度 -> 立刻尝试派出一个批次”的顺序循环；
 ## 即使城市起手已满员，只要挂着持续任务，也会把这一秒积累出来的产能直接转成真实出兵。
 func _is_gameplay_paused() -> bool:
 	return _manual_paused or overlay_layer.visible or order_dialog.visible
@@ -285,6 +287,15 @@ func _refresh_pause_button_visual() -> void:
 		return
 	pause_button.icon = PAUSE_BUTTON_ICON
 	pause_button.tooltip_text = "暂停"
+
+
+## 同步手动暂停状态到背景音乐与音效播放器。
+##
+## 调用场景：暂停状态切换后刷新主视图时。
+## 主要逻辑：把 BGM 和 SFX 的 `stream_paused` 与 `_manual_paused` 保持一致，确保点暂停后声音也会冻结，继续时再恢复。
+func _sync_audio_pause_state() -> void:
+	bgm_player.stream_paused = _manual_paused
+	sfx_player.stream_paused = _manual_paused
 
 
 ## 处理玩家在主场景上的原始输入，用于地图拖拽与基础指针跟踪。
